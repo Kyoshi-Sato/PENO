@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://c5lpjegcml0ma"]
 
+[ext_resource type="Theme" uid="uid://b3cdo5skdrtab" path="res://UI.tres" id="1_uu6xs"]
 [ext_resource type="Script" uid="uid://c8u82td85krxv" path="res://Main.gd" id="2"]
 
 [sub_resource type="Theme" id="Theme_kq557"]
@@ -14,6 +15,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("1_uu6xs")
 theme_override_constants/margin_left = 32
 theme_override_constants/margin_top = 32
 theme_override_constants/margin_right = 32
@@ -56,18 +58,6 @@ theme = SubResource("Theme_kq557")
 theme_override_constants/h_separation = 32
 theme_override_constants/v_separation = 32
 columns = 3
-
-[node name="Audio" type="Button" parent="VBoxContainer/Main/Tasks" unique_id=841713532]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-text = "Audio Tasks"
-
-[node name="Text" type="Button" parent="VBoxContainer/Main/Tasks" unique_id=587892774]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-text = "Text Tasks"
 
 [node name="Vision" type="Button" parent="VBoxContainer/Main/Tasks" unique_id=1851883250]
 layout_mode = 2
@@ -116,6 +106,8 @@ theme_override_constants/separation = 48
 alignment = 1
 
 [node name="ExternalFilesPopup" type="ConfirmationDialog" parent="." unique_id=1527907120]
+oversampling_override = 1.0
+size = Vector2i(200, 314)
 dialog_text = "GDMP Demo requires internet connection to download model assets from Google Cloud Storage.
 By enabling this option, your IP address may be revealed to Google, continue?"
 dialog_autowrap = true

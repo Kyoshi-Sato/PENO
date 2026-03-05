@@ -31,10 +31,10 @@ func go_to_main_scene() -> void:
 
 func get_external_model(path: String, callback: Callable) -> HTTPRequest:
 	if enable_download_files:
-		var request = MediaPipeExternalFiles.get_model(path)
+		var request: = MediaPipeExternalFiles.get_model(path)
 		if request != null:
 			var save_path := model_dir.path_join(path)
-			var request_callback = _get_external_file.bind(save_path, callback)
+			var request_callback: = _get_external_file.bind(save_path, callback)
 			request.request_completed.connect(request_callback)
 			return request
 	return null

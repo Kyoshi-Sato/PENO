@@ -4,7 +4,6 @@ var package_name := "mediapipe.tasks.vision.holistic_landmarker"
 var task_file := "holistic_landmarker/holistic_landmarker/float16/latest/holistic_landmarker.task"
 var task_runner := MediaPipeTaskRunner.new()
 var renderer: MediaPipeHolisticRenderer
-var Apackets
 @onready var lbl_blendshapes: Label = $VBoxContainer/Image/Blendshapes
 
 func _packets_callback(outputs: Dictionary) -> void:
@@ -69,7 +68,7 @@ func show_result(outputs: Dictionary) -> void:
 	var packets := {}
 	if outputs.has("image_out"):
 		var packet: MediaPipePacket = outputs["image_out"]
-		var image = packet.get() as MediaPipeImage
+		var image: = packet.get() as MediaPipeImage
 		packets["input_image"] = image.get_image_frame_packet()
 		packets["input_image"].timestamp = packet.timestamp
 	#if outputs.has("face_landmarks"):
@@ -87,7 +86,7 @@ func show_result(outputs: Dictionary) -> void:
 	update_image(output_image.image)
 
 func debug_print_landmarks(packets: Dictionary) -> void:
-	var keys = [
+	var keys: Array[String] = [
 		"pose_landmarks",
 		"left_hand_landmarks",
 		"right_hand_landmarks",
@@ -104,11 +103,11 @@ func debug_print_landmarks(packets: Dictionary) -> void:
 		if packet == null:
 			continue
 
-		var proto = packet.get()
+		var proto: Variant = packet.get()
 		if proto == null:
 			continue
 
-		var landmarks = proto.get_field("landmark")
+		var landmarks : Variant = proto.get_field("landmark")
 		if landmarks == null:
 			print("Sem landmarks")
 			continue
@@ -116,14 +115,14 @@ func debug_print_landmarks(packets: Dictionary) -> void:
 		print("Total landmarks:", landmarks.size())
 
 		for i in range(landmarks.size()):
-			var lm = landmarks[i]
+			var lm: Variant = landmarks[i]
 
-			var x = lm.get_field("x")
-			var y = lm.get_field("y")
-			var z = lm.get_field("z")
+			var x: Variant = lm.get_field("x")
+			var y: Variant = lm.get_field("y")
+			var z: Variant = lm.get_field("z")
 
-			var visibility = lm.get_field("visibility")
-			var presence = lm.get_field("presence")
+			var visibility: Variant = lm.get_field("visibility")
+			var presence: Variant = lm.get_field("presence")
 
 			print("ID:", i,
 				" x:", x,
@@ -136,7 +135,7 @@ func debug_print_landmarks(packets: Dictionary) -> void:
 func packets_to_json_dict(packets: Dictionary) -> Dictionary:
 	var result := {}
 
-	var keys = [
+	var keys: Array[String] = [
 		"pose_landmarks",
 		"left_hand_landmarks",
 		"right_hand_landmarks",
@@ -150,18 +149,18 @@ func packets_to_json_dict(packets: Dictionary) -> Dictionary:
 		if packet == null:
 			continue
 
-		var proto = packet.get()
+		var proto: Variant = packet.get()
 		if proto == null:
 			continue
 
-		var landmarks = proto.get_field("landmark")
+		var landmarks: Variant = proto.get_field("landmark")
 		if landmarks == null:
 			continue
 
 		var landmark_array := []
 
 		for i in range(landmarks.size()):
-			var lm = landmarks[i]
+			var lm: Variant = landmarks[i]
 
 			landmark_array.append({
 				"id": i,
@@ -173,13 +172,13 @@ func packets_to_json_dict(packets: Dictionary) -> Dictionary:
 			})
 
 		result[key] = landmark_array
-a
+
 	return result
 
 func show_blendshapes(classifications: Array) -> void:
 	lbl_blendshapes.text = ""
-	for classification in classifications:
-		var score = classification.get_field("score")
-		var label = classification.get_field("label")
+	for classification: Variant  in classifications:
+		var score: Variant = classification.get_field("score")
+		var label: Variant  = classification.get_field("label")
 		if score >= 0.5:
 			lbl_blendshapes.text += "%s: %.2f\n" % [label, score]

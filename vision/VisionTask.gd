@@ -5,7 +5,7 @@ var request: HTTPRequest
 var running_mode := MediaPipeVisionTask.RUNNING_MODE_IMAGE
 var delegate := MediaPipeTaskBaseOptions.DELEGATE_CPU
 var camera_extension: CameraServerExtension
-var camera_feed
+var camera_feed: CameraFeed
 var image_file_web: FileAccessWeb
 var video_file_web: FileAccessWeb
 
@@ -33,7 +33,7 @@ func _exit_tree() -> void:
 		request = null
 	camera_extension = null
 
-func _ready():
+func _ready() -> void: 
 	btn_back.pressed.connect(self._back)
 	opt_delegate.item_selected.connect(self._delegate_selected)
 	btn_load_image.pressed.connect(self._open_image)
@@ -186,7 +186,7 @@ func _camera_feeds_updated() -> void:
 	_initialize_camera_extension()
 
 func _update_camera_feeds() -> void:
-	var feeds = CameraServer.feeds()
+	var feeds: Array[CameraFeed] = CameraServer.feeds()
 	opt_camera_feed.clear()
 	for feed in feeds:
 		opt_camera_feed.add_item(feed.get_name(), feed.get_id())
@@ -207,8 +207,8 @@ func _camera_selected(_index: int) -> void:
 			break
 	if camera_feed == null:
 		return
-	var formats = camera_feed.get_formats()
-	for format in formats:
+	var formats : Array = camera_feed.get_formats()
+	for format : Variant in formats:
 		if format.has("frame_numerator") and format.has("frame_denominator"):
 			format["fps"] = round(format["frame_denominator"] / format["frame_numerator"])
 		if format.has("framerate_numerator") and format.has("framerate_denominator"):
@@ -236,18 +236,18 @@ func _start_camera() -> void:
 	camera_feed.feed_is_active = true
 	_camera_format_changed()
 
-func _camera_added(id: int):
+func _camera_added(id: int) -> void:
 	for i in range(opt_camera_feed.item_count):
 		if opt_camera_feed.get_item_id(i) == id:
 			return
-	var feeds = CameraServer.feeds()
+	var feeds : Array[CameraFeed] = CameraServer.feeds()
 	for feed in feeds:
 		if feed.get_id() == id:
 			var idx := opt_camera_feed.selected
 			opt_camera_feed.add_item.call_deferred(feed.get_name(), id)
 			opt_camera_feed.select.call_deferred(idx)
 
-func _camera_removed(id: int):
+func _camera_removed(id: int) -> void:
 	if opt_camera_feed.get_selected_id() == id:
 		opt_camera_format.clear.call_deferred()
 	for i in range(opt_camera_feed.item_count):
@@ -319,7 +319,7 @@ func _camera_frame_changed() -> void:
 	var texture := camera_viewport.get_texture()
 	if texture == null:
 		return
-	var image = texture.get_image()
+	var image: Image = texture.get_image()
 	if image == null:
 		return
 	if delegate == MediaPipeTaskBaseOptions.DELEGATE_GPU:

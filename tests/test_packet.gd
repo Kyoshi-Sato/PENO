@@ -1,12 +1,12 @@
 extends GutTest
 
-func test_empty():
+func test_empty() -> void:
 	var packet := MediaPipePacket.new()
 	assert_true(packet.is_empty())
 	assert_eq(packet.get_type_name(), "")
 	assert_null(packet.get())
 
-func test_setget():
+func test_setget() -> void:
 	var packet := MediaPipePacket.new()
 	var rand_int32 := randi() - 2 ** 31
 	var rand_int64 := randi() + randi() - 2 ** 63
@@ -14,7 +14,7 @@ func test_setget():
 	var rand_float := randf()
 	var rand_bytes := range(33, 127)
 	rand_bytes.shuffle()
-	var rand_str = PackedByteArray(rand_bytes).get_string_from_ascii()
+	var rand_str: String = PackedByteArray(rand_bytes).get_string_from_ascii()
 	var image := MediaPipeImage.new()
 	packet.set_bool(rand_bool)
 	assert_eq(packet.get(), rand_bool)
