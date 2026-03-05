@@ -12,7 +12,7 @@ var video_file_web: FileAccessWeb
 @onready var external_files_disabled: Label = $VBoxContainer/ExternalFileDisabled
 @onready var progress_bar: ProgressBar = $VBoxContainer/ProgressBar
 @onready var image_view: TextureRect = $VBoxContainer/Image
-@onready var video_player: VideoStreamPlayer = $Video
+@onready var video_player: VideoStreamPlayer = %Video
 @onready var btn_back: Button = $VBoxContainer/Title/Back
 @onready var opt_delegate: OptionButton = $VBoxContainer/Title/OptionDelegate
 @onready var btn_load_image: Button = $VBoxContainer/Buttons/LoadImage

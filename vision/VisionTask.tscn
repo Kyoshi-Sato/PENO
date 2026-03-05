@@ -1,12 +1,10 @@
 [gd_scene format=3 uid="uid://cu2jsegm1nbtf"]
 
-[ext_resource type="Theme" path="res://UI.tres" id="1_8m5im"]
+[ext_resource type="Theme" uid="uid://bwvd7d8yfgkr1" path="res://themes/libras_soft.tres" id="1_8m5im"]
 [ext_resource type="Script" uid="uid://cd8j4q768wuxu" path="res://vision/VisionTask.gd" id="1_xmyhf"]
 
 [sub_resource type="Theme" id="Theme_8m5im"]
 default_font_size = 48
-
-[sub_resource type="ImageTexture" id="ImageTexture_fdc01"]
 
 [sub_resource type="Theme" id="Theme_pmbf8"]
 default_font_size = 48
@@ -77,12 +75,16 @@ Enable downloading external files on the main menu to continue."
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Image" type="TextureRect" parent="VBoxContainer" unique_id=516988011]
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="VBoxContainer" unique_id=262607911]
+clip_contents = true
 layout_mode = 2
 size_flags_vertical = 3
-texture = SubResource("ImageTexture_fdc01")
-expand_mode = 1
-stretch_mode = 5
+
+[node name="Video" type="VideoStreamPlayer" parent="VBoxContainer/AspectRatioContainer" unique_id=1634951684]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+paused = true
 
 [node name="ProgressBar" type="ProgressBar" parent="VBoxContainer" unique_id=1940209966]
 visible = false
@@ -109,10 +111,6 @@ text = "Load Video"
 layout_mode = 2
 disabled = true
 text = "Open Camera"
-
-[node name="Video" type="VideoStreamPlayer" parent="." unique_id=1634951684]
-visible = false
-layout_mode = 2
 
 [node name="ImageFileDialog" type="FileDialog" parent="." unique_id=1703044154]
 title = "Open a File"

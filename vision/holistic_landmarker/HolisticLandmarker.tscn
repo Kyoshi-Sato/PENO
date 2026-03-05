@@ -6,12 +6,35 @@
 [node name="VisionTask" unique_id=1039377475 instance=ExtResource("1_40wvd")]
 script = ExtResource("2_58jts")
 
-[node name="Title" parent="VBoxContainer" index="0"]
+[node name="VBoxContainer_Image#Blendshapes" type="Label" parent="." index="0" unique_id=1420669857]
+layout_mode = 2
+
+[node name="Panel" type="Panel" parent="." index="1" unique_id=1951371062]
+layout_mode = 2
+
+[node name="Title" parent="VBoxContainer" parent_id_path=PackedInt32Array(1965547414) index="0" unique_id=1519521900]
 text = "Holistic Landmarker"
 
-[node name="Blendshapes" type="Label" parent="VBoxContainer/Image" index="0" unique_id=1420669857]
-layout_mode = 1
-anchors_preset = 9
-anchor_bottom = 1.0
-offset_right = 1.0
-grow_vertical = 2
+[node name="VBoxContainer_Image#AspectRatioContainer" type="AspectRatioContainer" parent="VBoxContainer" parent_id_path=PackedInt32Array(1965547414) index="2" unique_id=262607911]
+clip_contents = true
+layout_mode = 2
+size_flags_vertical = 3
+stretch_mode = 1
+
+[node name="Video" type="VideoStreamPlayer" parent="VBoxContainer/VBoxContainer_Image#AspectRatioContainer" index="0" unique_id=1634951684]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 2
+paused = true
+
+[node name="VideoFileDialog" parent="." index="4" unique_id=155512832]
+oversampling_override = 1.0
+position = Vector2i(0, 36)
+size = Vector2i(683, 360)
+
+[node name="SelectCamera" parent="." index="5" unique_id=2117772691]
+oversampling_override = 1.0
+size = Vector2i(246, 268)
+
+[node name="VBoxContainer" parent="SelectCamera" index="2" unique_id=197423082]
+offset_bottom = -86.0
