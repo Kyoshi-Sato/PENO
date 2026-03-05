@@ -22,7 +22,6 @@ size_flags_vertical = 3
 stretch_mode = 1
 
 [node name="Video" type="VideoStreamPlayer" parent="VBoxContainer/VBoxContainer_Image#AspectRatioContainer" index="0" unique_id=1634951684]
-unique_name_in_owner = true
 clip_contents = true
 layout_mode = 2
 paused = true
@@ -34,7 +33,11 @@ size = Vector2i(683, 360)
 
 [node name="SelectCamera" parent="." index="5" unique_id=2117772691]
 oversampling_override = 1.0
-size = Vector2i(246, 268)
+size = Vector2i(252, 269)
 
 [node name="VBoxContainer" parent="SelectCamera" index="2" unique_id=197423082]
-offset_bottom = -86.0
+offset_bottom = -87.0
+
+[node name="PermissionDialog" parent="." index="7" unique_id=133536322]
+oversampling_override = 1.0
+size = Vector2i(316, 160)
