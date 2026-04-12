@@ -24,8 +24,8 @@ func _init_task() -> void:
 	node.get_output_tag("POSE_LANDMARKS").connect_to(builder.get_output_tag("POSE_LANDMARKS"), "pose_landmarks")
 	node.get_output_tag("LEFT_HAND_LANDMARKS").connect_to(builder.get_output_tag("LEFT_HAND_LANDMARKS"), "left_hand_landmarks")
 	node.get_output_tag("RIGHT_HAND_LANDMARKS").connect_to(builder.get_output_tag("RIGHT_HAND_LANDMARKS"), "right_hand_landmarks")
-	node.get_output_tag("FACE_LANDMARKS").connect_to(builder.get_output_tag("FACE_LANDMARKS"), "face_landmarks")
-	node.get_output_tag("FACE_BLENDSHAPES").connect_to(builder.get_output_tag("FACE_BLENDSHAPES"), "face_blendshapes")
+	#node.get_output_tag("FACE_LANDMARKS").connect_to(builder.get_output_tag("FACE_LANDMARKS"), "face_landmarks")
+	#node.get_output_tag("FACE_BLENDSHAPES").connect_to(builder.get_output_tag("FACE_BLENDSHAPES"), "face_blendshapes")
 	node.get_output_tag("IMAGE").connect_to(builder.get_output_tag("IMAGE"), "image_out")
 	
 	var config := builder.get_config()
@@ -62,20 +62,23 @@ func show_result(outputs: Dictionary) -> void:
 	var packets := {}
 	if outputs.has("image_out"):
 		var packet: MediaPipePacket = outputs["image_out"]
-		var image: = packet.get() as MediaPipeImage
+		var image := packet.get() as MediaPipeImage
 		packets["input_image"] = image.get_image_frame_packet()
 		packets["input_image"].timestamp = packet.timestamp
-	if outputs.has("face_landmarks"):
-		packets["face_landmarks"] = outputs["face_landmarks"]
+
 	if outputs.has("pose_landmarks"):
 		packets["pose_landmarks"] = outputs["pose_landmarks"]
+
 	if outputs.has("left_hand_landmarks"):
 		packets["left_hand_landmarks"] = outputs["left_hand_landmarks"]
+
 	if outputs.has("right_hand_landmarks"):
 		packets["right_hand_landmarks"] = outputs["right_hand_landmarks"]
+
 	var output_image := renderer.render(packets)
 	if output_image == null:
 		return
+
 	update_image(output_image.image)
 
 func show_blendshapes(classifications: Array) -> void:
