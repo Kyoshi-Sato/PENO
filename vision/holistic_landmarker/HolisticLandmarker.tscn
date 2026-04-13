@@ -5,6 +5,7 @@
 
 [node name="VisionTask" unique_id=449113624 instance=ExtResource("1_40wvd")]
 script = ExtResource("2_58jts")
+capture_duration_seconds = 3.0
 
 [node name="Title" parent="VBoxContainer" parent_id_path=PackedInt32Array(448901507) index="0" unique_id=394622400]
 text = "Holistic Landmarker"
