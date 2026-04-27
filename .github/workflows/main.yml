@@ -1,40 +1,33 @@
-name: "godot-export"
-
-on: 
+name: "godot-export-on-push"
+on:
   push:
-    tags:
-      - "v*" # Roda quando você criar tag v1.0, v2.0, etc.
+    branches:
+      - main  # Ou 'master', dependendo do nome da sua branch principal
 
 jobs:
   export_game:
     runs-on: ubuntu-latest
-    # ESSENCIAL: Permite que o Action escreva no repositório para criar o Release
-    permissions:
-      contents: write
-    
     name: Export Game
     steps:
       - name: checkout
-        uses: actions/checkout@v4 # v4 ou v5 funcionam bem
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: export game
-        id: export # ID para o próximo passo saber onde estão os arquivos
-        uses: firebelley/godot-export@v7.0.0
+        uses: firebelley/godot-export@v5.2.0
         with:
-          # LINKS DIRETOS DA TUXFAMILY (Substitua 4.2.2 pela sua versão se for diferente)
-          godot_executable_download_url: https://downloads.tuxfamily.org/godotengine/4.2.2/Godot_v4.6.2-stable_linux.x86_64.zip
-          godot_export_templates_download_url: https://downloads.tuxfamily.org/godotengine/4.2.2/Godot_v4.6.2-stable_export_templates.tpz
+          # MANTENHA OS LINKS QUE VOCÊ JÁ ESTAVA USANDO
+          godot_executable_download_url: https://godot-releases.nbg1.your-objectstorage.com/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
+          godot_export_templates_download_url: http://github.com/godotengine/godot/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz 
           relative_project_path: ./
           archive_output: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.EXPORT_GITHUB_TOKEN }}
 
-      - name: create release
-        uses: ncipollo/release-action@v1.14.0
+      # PASSO NOVO: Salvar o jogo como um artefato do GitHub
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          # O GITHUB_TOKEN é automático, não precisa configurar nada no Settings!
-          token: ${{ secrets.GITHUB_TOKEN }}
-          generateReleaseNotes: true
-          tag: ${{ github.ref_name }}
-          # Pega os arquivos que o passo de exportação gerou
-          artifacts: ${{ steps.export.outputs.archive_directory }}/*
+          name: build-do-jogo
+          path: /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/builds/
