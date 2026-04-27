@@ -1,6 +1,5 @@
 name: "godot-export"
 on:
-
   push:
     tags:
       - 'v*' # Vai rodar sempre que você criar uma tag tipo v1.0, v1.1...
@@ -8,10 +7,6 @@ on:
 jobs:
   export_game:
     runs-on: ubuntu-latest
-
-
-
-
     name: Export Game
     steps:
       - name: checkout
@@ -21,7 +16,6 @@ jobs:
 
       - name: export game
         uses: firebelley/godot-export@v5.2.0
-
         with:
           # O Link da versão HEADLESS do Godot (Linux)
           godot_executable_download_url: https://downloads.godotengine.org/?version=4.6.2&flavor=stable&slug=linux.x86_64.zip&platform=linux.64
@@ -30,4 +24,4 @@ jobs:
           relative_project_path: ./ # Onde está o seu project.godot
           archive_output: true
         env:
-          GITHUB_TOKEN: ${{ secrets.EXPORT_GITHUB_TOKEN }
+          GITHUB_TOKEN: ${{ secrets.EXPORT_GITHUB_TOKEN }}
