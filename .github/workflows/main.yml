@@ -1,12 +1,17 @@
-name: "godot-export-on-push"
+name: "godot-export"
 on:
+
   push:
-    branches:
-      - main  # Ou 'master', dependendo do nome da sua branch principal
+    tags:
+      - 'v*' # Vai rodar sempre que você criar uma tag tipo v1.0, v1.1...
 
 jobs:
   export_game:
     runs-on: ubuntu-latest
+
+
+
+
     name: Export Game
     steps:
       - name: checkout
@@ -16,18 +21,13 @@ jobs:
 
       - name: export game
         uses: firebelley/godot-export@v5.2.0
+
         with:
-          # MANTENHA OS LINKS QUE VOCÊ JÁ ESTAVA USANDO
-          godot_executable_download_url: https://godot-releases.nbg1.your-objectstorage.com/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip
+          # O Link da versão HEADLESS do Godot (Linux)
+          godot_executable_download_url: https://downloads.godotengine.org/?version=4.6.2&flavor=stable&slug=linux.x86_64.zip&platform=linux.64
+          # O Link dos templates de exportação (.tpz)
           godot_export_templates_download_url: http://github.com/godotengine/godot/releases/download/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
-          relative_project_path: ./
+          relative_project_path: ./ # Onde está o seu project.godot
           archive_output: true
         env:
-          GITHUB_TOKEN: ${{ secrets.EXPORT_GITHUB_TOKEN }}
-
-      # PASSO NOVO: Salvar o jogo como um artefato do GitHub
-      - name: upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-do-jogo
-          path: /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/builds/
+          GITHUB_TOKEN: ${{ secrets.EXPORT_GITHUB_TOKEN }
