@@ -16,6 +16,8 @@ var capture_frame_index := 0
 @export var capture_duration_seconds := 10.0
 var capture_output_path := ""
 
+signal landmarks_detected
+
 func _ready() -> void:
 	super()
 	capture_timer = Timer.new()
@@ -35,7 +37,6 @@ func _reset() -> void:
 
 func _start_camera() -> void:
 	super()
-	_begin_capture()
 
 func _begin_capture() -> void:
 	capture_frames.clear()
@@ -45,7 +46,7 @@ func _begin_capture() -> void:
 	capture_active = true
 
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
-	capture_output_path = "user://holistic_capture_%s.json" % stamp
+	capture_output_path = "res://data/jsonxported/holistic_capture_%s.json" % stamp
 
 	if capture_timer and not capture_timer.is_stopped():
 		capture_timer.stop()
@@ -301,7 +302,7 @@ func _export_capture_json() -> void:
 
 	file.store_string(JSON.stringify(export_data, "\t"))
 	file.close()
-
+	emit_signal("landmarks_detected", export_data)
 	print("JSON exportado em: ", ProjectSettings.globalize_path(capture_output_path))
 
 func show_blendshapes(classifications: Array) -> void:

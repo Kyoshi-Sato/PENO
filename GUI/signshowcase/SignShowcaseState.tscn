@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://busofjttw620w"]
+
+[ext_resource type="Script" uid="uid://bvwxc6fthc42r" path="res://GUI/signshowcase/SignShowcaseState.gd" id="1_showcase"]
+
+[node name="SignShowcaseState" type="Control" unique_id=140003719]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_showcase")
+
+[node name="Panel" type="PanelContainer" parent="." unique_id=1088709949]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -220.0
+offset_right = 300.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel" unique_id=943079950]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Panel/VBoxContainer" unique_id=182454793]
+layout_mode = 2
+theme_override_font_sizes/font_size = 72
+text = "Nome da Lição"
+horizontal_alignment = 1
+
+[node name="Description" type="Label" parent="Panel/VBoxContainer" unique_id=1236406641]
+layout_mode = 2
+theme_override_font_sizes/font_size = 72
+text = "Observe o avatar fazendo o gesto."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Buttons" type="HBoxContainer" parent="Panel/VBoxContainer" unique_id=1895393288]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="PlayAnimation" type="Button" parent="Panel/VBoxContainer/Buttons" unique_id=262768015]
+custom_minimum_size = Vector2(180, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 72
+text = "Tocar gesto"
+
+[node name="Advance" type="Button" parent="Panel/VBoxContainer/Buttons" unique_id=1357863048]
+custom_minimum_size = Vector2(180, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 72
+text = "Estou pronto ▶"
