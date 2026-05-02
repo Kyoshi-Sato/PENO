@@ -2,8 +2,7 @@
 
 [ext_resource type="Script" uid="uid://fg7tgmaq54hx" path="res://Screens/Screen Scripts/MainMenu.gd" id="1"]
 [ext_resource type="Theme" uid="uid://bwvd7d8yfgkr1" path="res://themes/libras_soft.tres" id="2"]
-[ext_resource type="Texture2D" path="res://R.jpeg" id="3_7t5rn"]
-
+[ext_resource type="Texture2D" uid="uid://dfdy4o6a8mx2" path="res://R.jpeg" id="3_7t5rn"]
 
 [node name="MainMenu" type="Control" unique_id=977787666]
 layout_mode = 3

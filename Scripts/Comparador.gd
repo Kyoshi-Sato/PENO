@@ -14,7 +14,7 @@
 ##   var results := comparator.analyze_similarity(json_a, json_b)
 ##   comparator.print_summary(results, "VideoA", "VideoB")
 
-class_name SignComparator
+class_name MotionComparator
 extends RefCounted
 
 
@@ -755,7 +755,7 @@ func _extract_bone_x_segment(
 ## Realiza toda a análise de similaridade entre dois vídeos.
 ## json_a / json_b: Dictionaries já carregados (use load_json).
 ## Retorna Dictionary com resultados por grupo de ossos + "_global_similarity_pct".
-func compare(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
+func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 	var frames_a: Array = json_a.get("frames", []) as Array
 	var frames_b: Array = json_b.get("frames", []) as Array
 
