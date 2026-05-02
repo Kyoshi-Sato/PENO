@@ -1,6 +1,6 @@
 extends Node
 
-var main_scene := preload("res://Screens/Main.tscn")
+var main_scene := preload("res://GUI/Screens/Main.tscn")
 var enable_download_files: bool = false
 var model_dir := "user://GDMP"
 

@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Librarefa"
-run/main_scene="res://Screens/MainMenu.tscn"
+run/main_scene="res://GUI/Screens/MainMenu.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/image="uid://f0jfr0db5b16"
@@ -54,9 +54,13 @@ enabled=PackedStringArray("res://addons/CameraServerExtension/plugin.cfg", "res:
 [file_customization]
 
 folder_colors={
+"res://GUI/": "orange",
+"res://GUI/vision/": "blue",
+"res://Scripts/": "purple",
 "res://addons/": "red",
-"res://audio/": "blue",
-"res://vision/": "green"
+"res://assets/": "green",
+"res://assets/audio/": "blue",
+"res://data/": "gray"
 }
 
 [rendering]

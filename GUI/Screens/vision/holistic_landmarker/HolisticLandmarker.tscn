@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://dt08jfr74fxgr"]
+
+[ext_resource type="PackedScene" uid="uid://cu2jsegm1nbtf" path="res://GUI/vision/VisionTask.tscn" id="1_40wvd"]
+[ext_resource type="Script" uid="uid://g7810jly3m4a" path="res://GUI/vision/holistic_landmarker/HolisticLandmarker.gd" id="2_58jts"]
+
+[node name="VisionTask" unique_id=449113624 instance=ExtResource("1_40wvd")]
+script = ExtResource("2_58jts")
+capture_duration_seconds = 3.0
+
+[node name="Title" parent="VBoxContainer" parent_id_path=PackedInt32Array(448901507) index="0" unique_id=394622400]
+text = "Holistic Landmarker"
+
+[node name="Blendshapes" type="Label" parent="VBoxContainer/Image" parent_id_path=PackedInt32Array(1265081261) index="0" unique_id=1839062472]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 1.0
+grow_vertical = 2
