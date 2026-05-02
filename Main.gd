@@ -5,7 +5,7 @@ var tasks_audio := {
 var tasks_text := {
 }
 var tasks_vision := {
-	"Holistic Landmarker": "res://vision/holistic_landmarker/HolisticLandmarker.tscn",
+	"MAPA": "res://Screens/lesson_map/LessonMapScreen.tscn",
 }
 
 @onready var btn_back: Button = $VBoxContainer/Title/Back

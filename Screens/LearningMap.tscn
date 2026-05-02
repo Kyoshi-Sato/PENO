@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://bwr3fuasjgo3e" path="res://Screens/Screen Scripts/LearningMap.gd" id="1"]
 [ext_resource type="Theme" uid="uid://bwvd7d8yfgkr1" path="res://themes/libras_soft.tres" id="2"]
 
+
 [node name="LearningMap" type="Control" unique_id=912437409]
 layout_mode = 3
 anchors_preset = 15

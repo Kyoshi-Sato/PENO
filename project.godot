@@ -30,7 +30,8 @@ driver/enable_input=true
 
 MediaPipeExternalFiles="*uid://dsyuq4kjrnbs4"
 GDMPAndroid="*uid://cdvhdf5dmteib"
-Global="*res://Global.gd"
+Global="*res://Scripts/autoloads/Global.gd"
+LessonService="*uid://dgp7x2yahcnb5"
 
 [debug]
 
@@ -54,9 +55,13 @@ enabled=PackedStringArray("res://addons/CameraServerExtension/plugin.cfg", "res:
 [file_customization]
 
 folder_colors={
+"res://Screens/": "orange",
+"res://Screens/vision2/": "orange",
+"res://Scripts/": "purple",
 "res://addons/": "red",
-"res://audio/": "blue",
-"res://vision/": "green"
+"res://assets/": "green",
+"res://assets/audio/": "blue",
+"res://data/": "gray"
 }
 
 [rendering]
