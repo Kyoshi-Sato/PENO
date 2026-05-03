@@ -107,7 +107,7 @@ func _on_enter_recording() -> void:
 ## Duração da gravação = duração da animação do sinal atual + 2 segundos
 ## de margem (pra dar tempo do usuário começar e terminar com folga).
 ## Retorna -1.0 se não conseguir calcular (RecordingState usa o default).
-const CAPTURE_MARGIN_SECONDS := 2.0
+const CAPTURE_MARGIN_SECONDS := 1.0
 
 func _compute_capture_duration() -> float:
 	if lesson == null or animation_player == null:
