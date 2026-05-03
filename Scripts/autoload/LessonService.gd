@@ -23,7 +23,7 @@ extends Node
 ##
 ## Cadastre como Autoload com nome "LessonService".
 
-const Lesson := preload("res://Scripts/Lesson.gd")
+const LessonB := preload("res://Scripts/Lesson.gd")
 
 signal lesson_loaded(lesson_id: int, lesson: Lesson)
 signal lesson_failed(lesson_id: int, error: String)
@@ -31,7 +31,7 @@ signal lesson_failed(lesson_id: int, error: String)
 signal catalog_loaded(catalog: Array)
 signal catalog_failed(error: String)
 
-@export var base_url: String = " https://api.ciclicainteractive.com"
+@export var base_url: String = "https://api.ciclicainteractive.com"
 @export var api_key: String = "chave_secreta_godot"
 @export var cache_dir: String = "user://anim_cache/"
 
@@ -40,7 +40,12 @@ var _pending_lessons: Dictionary = {}
 # req -> { on_loaded, on_failed }
 var _pending_catalog: Dictionary = {}
 
+var DEBUGMODE: bool = false
 
+const DEBUG_CATALOG: Array[Dictionary] = [
+	{ "id": 1, "nome": "Debug" },
+	{ "id": 2, "nome": "Debug2" },
+]
 # ---------- LIÇÃO INDIVIDUAL ----------
 
 func fetch_lesson(lesson_id: int, on_loaded: Callable = Callable(), on_failed: Callable = Callable()) -> void:
@@ -61,7 +66,7 @@ func fetch_lesson(lesson_id: int, on_loaded: Callable = Callable(), on_failed: C
 
 	req.request_completed.connect(_on_lesson_response.bind(lesson_id))
 
-	var url := "%s/exercicio/%d" % [base_url.rstrip("/"), lesson_id]
+	var url := "%s/exercicio/%d" % [base_url, lesson_id]
 	var err := req.request(url, _build_headers(), HTTPClient.METHOD_GET)
 	if err != OK:
 		var on_failed_cb: Callable = _pending_lessons[lesson_id]["on_failed"]
@@ -173,6 +178,15 @@ func _load_animation_from_tres_text(tres_text: String, unique_id: String) -> Ani
 ## Busca a lista de lições disponíveis.
 ## Callback recebe Array de Dictionary: [{ "id": int, "nome": String }, ...]
 func fetch_catalog(on_loaded: Callable = Callable(), on_failed: Callable = Callable()) -> void:
+	if DEBUGMODE:
+		var catalog: Array = DEBUG_CATALOG.duplicate(true)
+
+		catalog_loaded.emit(catalog)
+
+		if on_loaded.is_valid():
+			on_loaded.call(catalog)
+		return
+
 	var req := HTTPRequest.new()
 	add_child(req)
 
@@ -183,7 +197,7 @@ func fetch_catalog(on_loaded: Callable = Callable(), on_failed: Callable = Calla
 
 	req.request_completed.connect(_on_catalog_response.bind(req))
 
-	var url := "%s/licoes" % base_url.rstrip("/")
+	var url := "%s/licoes" % base_url
 	var err := req.request(url, _build_headers(), HTTPClient.METHOD_GET)
 	if err != OK:
 		var on_failed_cb: Callable = _pending_catalog[req]["on_failed"]
@@ -209,18 +223,17 @@ func _on_catalog_response(_result: int, code: int, _headers: PackedStringArray, 
 	if not parsed is Array:
 		_emit_catalog_fail("Resposta do catálogo não é um array", on_failed)
 		return
-
 	# Normaliza: aceita tanto [{id, nome}] quanto [int].
 	var catalog: Array = []
 	for entry: Variant in parsed:
 		if entry is Dictionary:
 			catalog.append({
-				"id": int(entry.get("id", 0)),
-				"nome": String(entry.get("nome", "")),
+				"id_exercicio": int(entry.get("id_exercicio", 0)),
+				"nome_exercicio": String(entry.get("nome_exercicio", "")),
 			})
 		elif entry is int or entry is float:
-			catalog.append({ "id": int(entry), "nome": "Lição %d" % int(entry) })
-
+			catalog.append({ "id_exercicio": int(entry), "nome_exercicio": "Lição %d" % int(entry) })
+	
 	catalog_loaded.emit(catalog)
 	if on_loaded.is_valid():
 		on_loaded.call(catalog)

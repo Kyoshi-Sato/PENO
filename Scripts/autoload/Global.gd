@@ -12,9 +12,9 @@ extends Node
 const PROGRESS_PATH := "user://progress.json"
 const MODEL_DIR := "user://GDMP"
 
-const MAIN_SCENE := "res://Screens/main_menu/MainMenu.tscn"
-const LESSON_SCENE := "res://Screens/lessons/LessonScreen.tscn"
-const MAP_SCENE := "res://Screens/lesson_map/LessonMapScreen.tscn"
+const MAIN_SCENE := "res://GUI/Screens/Main.tscn"
+const LESSON_SCENE := "res://GUI/lessonscreen/LessonScreen.tscn"
+const MAP_SCENE := "res://GUI/lessonmap/LessonMapScreen.tscn"
 
 # Se seu projeto ainda usa o caminho antigo do GDMP demo, troque MAIN_SCENE por:
 # const MAIN_SCENE := "res://GUI/Screens/Main.tscn"
@@ -28,8 +28,7 @@ var enable_download_files: bool = false
 # ---------- ESTADO ----------
 
 ## Id da lição que a próxima LessonScreen deve carregar.
-var current_lesson_id: int = -1
-
+var current_lesson_id: int = 1
 ## lesson_id em String, pois JSON usa chaves como texto.
 ## Exemplo:
 ## {
@@ -186,7 +185,7 @@ func go_to_main_scene() -> void:
 
 func _load_progress() -> void:
 	if not FileAccess.file_exists(PROGRESS_PATH):
-		_progress = {}
+		_progress = {"1": { "completed": true, "stars": 3 }}
 		return
 
 	var file := FileAccess.open(PROGRESS_PATH, FileAccess.READ)

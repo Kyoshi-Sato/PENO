@@ -23,7 +23,7 @@ func _show_loading() -> void:
 	var lbl := Label.new()
 	lbl.text = "Carregando..."
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_font_size_override("font_size", 48)
 	path_container.add_child(lbl)
 
 
@@ -37,14 +37,14 @@ func _on_catalog_failed(error: String) -> void:
 	var lbl := Label.new()
 	lbl.text = "Falha ao carregar lições:\n%s" % error
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_font_size_override("font_size", 48)
 	path_container.add_child(lbl)
 
 
 func _build_path(catalog: Array) -> void:
 	for child in path_container.get_children():
 		child.queue_free()
-
+	
 	for i in range(catalog.size()):
 		var entry: Dictionary = catalog[i]
 		var row := _build_row(entry, i, catalog)
@@ -62,11 +62,11 @@ func _build_row(entry: Dictionary, index: int, catalog: Array) -> Control:
 	row.add_child(spacer)
 
 	var lesson_id := int(entry.get("id", -1))
-	var nome := String(entry.get("nome", "Lição %d" % lesson_id))
+	var nome := String(entry.get("nome_exercicio", "Lição %d" % lesson_id))
 
 	var btn := Button.new()
 	btn.custom_minimum_size = NODE_SIZE
-	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_font_size_override("font_size", 48)
 
 	var unlocked := Global.is_unlocked(lesson_id, catalog)
 	var completed := Global.is_completed(lesson_id)

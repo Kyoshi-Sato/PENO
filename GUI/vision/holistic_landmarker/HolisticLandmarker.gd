@@ -22,7 +22,6 @@ func _ready() -> void:
 	super()
 	capture_timer = Timer.new()
 	capture_timer.one_shot = true
-	capture_timer.wait_time = capture_duration_seconds
 	add_child(capture_timer)
 	capture_timer.timeout.connect(_on_capture_timeout)
 
@@ -38,21 +37,22 @@ func _reset() -> void:
 func _start_camera() -> void:
 	super()
 
-func _begin_capture() -> void:
+func _begin_capture(tempo: int) -> void:
 	capture_frames.clear()
 	capture_frame_index = 0
 	capture_first_packet_ms = -1
 	capture_started_at_ms = Time.get_ticks_msec()
 	capture_active = true
-
+	
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
 	capture_output_path = "res://data/jsonxported/holistic_capture_%s.json" % stamp
 
 	if capture_timer and not capture_timer.is_stopped():
 		capture_timer.stop()
+	capture_timer.wait_time = tempo
 	capture_timer.start()
 
-	print("Captura iniciada por 10 segundos.")
+	print_debug("Captura iniciada por: %d segundos" % tempo)
 
 func _on_capture_timeout() -> void:
 	capture_active = false

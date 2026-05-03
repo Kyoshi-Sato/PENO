@@ -2,59 +2,142 @@
 
 [ext_resource type="Script" uid="uid://bvwxc6fthc42r" path="res://GUI/signshowcase/SignShowcaseState.gd" id="1_showcase"]
 
-[node name="SignShowcaseState" type="Control" unique_id=140003719]
+[sub_resource type="StyleBoxFlat" id="card_bottom"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_left = 0
+corner_radius_bottom_right = 0
+shadow_color = Color(0, 0, 0, 0.08)
+shadow_size = 12
+shadow_offset = Vector2(0, -2)
+
+[sub_resource type="StyleBoxFlat" id="category_pill"]
+bg_color = Color(0.92, 0.94, 1, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_left = 16
+corner_radius_bottom_right = 16
+content_margin_left = 14.0
+content_margin_top = 6.0
+content_margin_right = 14.0
+content_margin_bottom = 6.0
+
+[node name="SignShowcaseState" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 1
 script = ExtResource("1_showcase")
 
-[node name="Panel" type="PanelContainer" parent="." unique_id=1088709949]
+[node name="TopHeader" type="MarginContainer" parent="."]
 layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 24.0
+offset_bottom = 132.0
+grow_horizontal = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+
+[node name="VBox" type="VBoxContainer" parent="TopHeader"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TopRow" type="HBoxContainer" parent="TopHeader/VBox"]
+layout_mode = 2
+
+[node name="LessonIndexLabel" type="Label" parent="TopHeader/VBox/TopRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Lição 03"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+
+[node name="FavoriteButton" type="Button" parent="TopHeader/VBox/TopRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(36, 36)
+flat = true
+toggle_mode = true
+text = "♡"
+theme_override_font_sizes/font_size = 22
+
+[node name="SignTitleLabel" type="Label" parent="TopHeader/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Bom dia"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 32
+
+[node name="CategoryPillContainer" type="HBoxContainer" parent="TopHeader/VBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="CategoryPill" type="Label" parent="TopHeader/VBox/CategoryPillContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cumprimentos"
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("category_pill")
+
+[node name="BottomCard" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
 anchor_top = 1.0
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -300.0
-offset_top = -220.0
-offset_right = 300.0
-offset_bottom = -20.0
+offset_top = -240.0
 grow_horizontal = 2
 grow_vertical = 0
+theme_override_styles/panel = SubResource("card_bottom")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Panel" unique_id=943079950]
+[node name="Margin" type="MarginContainer" parent="BottomCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 32
+
+[node name="VBox" type="VBoxContainer" parent="BottomCard/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="Panel/VBoxContainer" unique_id=182454793]
+[node name="ObserveLabel" type="Label" parent="BottomCard/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 72
-text = "Nome da Lição"
+text = "Observe o gesto"
 horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
 
-[node name="Description" type="Label" parent="Panel/VBoxContainer" unique_id=1236406641]
+[node name="HintLabel" type="Label" parent="BottomCard/Margin/VBox"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 72
-text = "Observe o avatar fazendo o gesto."
+text = "Toque em \"Ver devagar\" para
+assistir em câmera lenta."
 horizontal_alignment = 1
 autowrap_mode = 3
+theme_override_font_sizes/font_size = 13
 
-[node name="Buttons" type="HBoxContainer" parent="Panel/VBoxContainer" unique_id=1895393288]
+[node name="Spacer" type="Control" parent="BottomCard/Margin/VBox"]
+custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
-theme_override_constants/separation = 16
-alignment = 1
 
-[node name="PlayAnimation" type="Button" parent="Panel/VBoxContainer/Buttons" unique_id=262768015]
-custom_minimum_size = Vector2(180, 56)
+[node name="SlowButton" type="Button" parent="BottomCard/Margin/VBox"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 72
-text = "Tocar gesto"
+custom_minimum_size = Vector2(0, 48)
+text = "▶  Ver devagar"
+theme_override_font_sizes/font_size = 16
+flat = true
 
-[node name="Advance" type="Button" parent="Panel/VBoxContainer/Buttons" unique_id=1357863048]
-custom_minimum_size = Vector2(180, 56)
+[node name="PracticeButton" type="Button" parent="BottomCard/Margin/VBox"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 72
-text = "Estou pronto ▶"
+custom_minimum_size = Vector2(0, 56)
+theme_type_variation = &"PrimaryButton"
+text = "📷  Praticar agora"
+theme_override_font_sizes/font_size = 17

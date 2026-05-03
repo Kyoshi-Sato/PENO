@@ -5,7 +5,7 @@ var tasks_audio := {
 var tasks_text := {
 }
 var tasks_vision := {
-	"Lesson": "res://GUI/lessonscreen/LessonScreen.tscn",
+	"Lesson": "res://GUI/lessonmap/LessonMapScreen.tscn",
 }
 
 @onready var btn_back: Button = $VBoxContainer/Title/Back

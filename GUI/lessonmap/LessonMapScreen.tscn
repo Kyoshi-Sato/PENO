@@ -20,7 +20,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.96, 0.93, 0.87, 1)
+color = Color(0.9170572, 0.9326046, 0.97014505, 1)
 
 [node name="Margin" type="MarginContainer" parent="." unique_id=647808480]
 layout_mode = 1
@@ -52,7 +52,7 @@ text = "<"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 36
+theme_override_font_sizes/font_size = 72
 text = "Continuar aprendendo"
 horizontal_alignment = 1
 vertical_alignment = 1

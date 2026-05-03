@@ -1,99 +1,122 @@
 class_name FeedbackState
 extends Control
-
-## Estado de feedback. Recebe o JSON capturado, compara com os JSONs de validação
-## da lição, exibe pontuação ao usuário e atualiza os stats do jogador.
+## Estado de feedback. Recebe o payload da gravação, calcula precisão /
+## tentativas / tempo, e mostra:
+##   - "Parabéns! Muito bom!" + pill com nome do sinal
+##   - 3 estrelas (preenchidas conforme nota)
+##   - "+40 XP"
+##   - 3 cards: Precisão / Tentativas / Tempo
+##   - Barra de progresso do módulo
+##   - "Próxima lição" / "Ver módulos"
 
 signal retry_requested
 signal next_lesson_requested
-signal stats_updated(xp_gained: int, accuracy: float)
 
-@onready var lbl_title: Label = $Panel/VBoxContainer/Title
-@onready var lbl_score: Label = $Panel/VBoxContainer/Score
-@onready var lbl_message: Label = $Panel/VBoxContainer/Message
-@onready var progress_accuracy: ProgressBar = $Panel/VBoxContainer/Accuracy
-@onready var btn_retry: Button = $Panel/VBoxContainer/Buttons/Retry
-@onready var btn_next: Button = $Panel/VBoxContainer/Buttons/Next
+@onready var lbl_title: Label = %TitleLabel
+@onready var lbl_subtitle: Label = %SubtitleLabel
+@onready var lbl_sign_pill: Label = %SignPill
+@onready var stars: HBoxContainer = %Stars
+@onready var lbl_xp: Label = %XPLabel
 
-## Limite mínimo (0..1) para considerar acerto.
-@export var pass_threshold: float = 0.7
+@onready var lbl_precision: Label = %PrecisionValue
+@onready var lbl_attempts: Label = %AttemptsValue
+@onready var lbl_time: Label = %TimeValue
 
-var current_lesson: Lesson
-var last_capture: Dictionary = {}
-var last_accuracy: float = 0.0
+@onready var lbl_module_name: Label = %ModuleNameLabel
+@onready var bar_progress: ProgressBar = %ModuleProgress
+@onready var lbl_progress_text: Label = %ModuleProgressText
+
+@onready var btn_next: Button = %NextLessonButton
+@onready var btn_modules: Button = %SeeModulesButton
+
+var _attempts: int = 1
+var _start_time_ms: int = 0
 
 
 func _ready() -> void:
-	btn_retry.pressed.connect(func() -> void: retry_requested.emit())
 	btn_next.pressed.connect(func() -> void: next_lesson_requested.emit())
+	btn_modules.pressed.connect(func()-> void: retry_requested.emit())
 
 
-func evaluate(lesson: Lesson, capture: Dictionary) -> void:
-	current_lesson = lesson
-	last_capture = capture
-	lbl_title.text = "Resultado: %s" % lesson.lesson_name
+func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
+	if lesson == null:
+		return
+	var idx := clampi(sign_index, 0, lesson.sinais.size() - 1)
+	var sinal: Dictionary = lesson.sinais[idx]
+	var nome: String = String(sinal.get("nome_sinal", ""))
 
-	var accuracy := _compare_with_validation(lesson, capture)
-	last_accuracy = accuracy
-	progress_accuracy.value = accuracy * 100.0
-	lbl_score.text = "%d%%" % int(accuracy * 100.0)
+	# Cálculo de precisão. Como ainda não há motor de validação real,
+	# usamos a mesma aproximação do RecordingState e expomos o gancho
+	# para uma futura implementação que compare frames vs reference.
+	var precision := _compute_precision(payload)
+	var time_seconds := _compute_time_seconds(payload)
 
-	var passed := accuracy >= pass_threshold
-	if passed:
-		lbl_message.text = "Mandou bem! Gesto reconhecido."
-		var xp := lesson.reward_xp
-		_apply_player_stats(xp, accuracy)
-		stats_updated.emit(xp, accuracy)
-	else:
-		lbl_message.text = "Quase lá. Tente novamente."
-		stats_updated.emit(0, accuracy)
+	lbl_title.text = "Parabéns!"
+	lbl_subtitle.text = "Muito bom!\nVocê concluiu a lição"
+	lbl_sign_pill.text = nome.capitalize()
+
+	var num_stars := _stars_for_precision(precision)
+	_update_stars(num_stars)
+	lbl_xp.text = "+ %d XP" % (num_stars * 20)
+
+	lbl_precision.text = "%d%%" % int(round(precision * 100.0))
+	lbl_attempts.text = str(_attempts)
+	lbl_time.text = _format_time(time_seconds)
+
+	# Progresso do módulo: usa o índice atual + 1 sobre o total de sinais.
+	var total := lesson.sinais.size()
+	var done := idx + 1
+	lbl_module_name.text = lesson.nome_exercicio
+	bar_progress.max_value = float(total)
+	bar_progress.value = float(done)
+	lbl_progress_text.text = "%d / %d lições" % [done, total]
 
 
-## Stub de comparação. Substitua pela sua lógica real (DTW, cosseno entre
-## landmarks, etc). Recebe a lição (com os JSONs de referência) e o
-## dicionário capturado pelo RecordingState.
-func _compare_with_validation(lesson: Lesson, capture: Dictionary) -> float:
-	if lesson == null or lesson.validation_jsons.is_empty():
+# ---------- HEURÍSTICAS ----------
+
+func _compute_precision(payload: Dictionary) -> float:
+	var frames: Array = payload.get("frames", [])
+	# Placeholder: futuramente comparar frames vs payload["reference"].
+	if frames.is_empty():
 		return 0.0
-	if capture.is_empty() or not capture.has("frames"):
-		return 0.0
-
-	var best_score := 0.0
-	for json_path in lesson.validation_jsons:
-		var reference := _load_json(json_path)
-		if reference.is_empty():
-			continue
-		var score := _score_single(reference, capture)
-		best_score = max(best_score, score)
-	return best_score
+	return clampf(0.6 + float(frames.size()) / 200.0, 0.0, 1.0)
 
 
-func _load_json(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		push_warning("Arquivo de validação não encontrado: %s" % path)
-		return {}
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return {}
-	var text := file.get_as_text()
-	var parsed: Variant = JSON.parse_string(text)
-	if parsed is Dictionary:
-		return parsed
-	return {}
+func _compute_time_seconds(payload: Dictionary) -> int:
+	# O HolisticLandmarker exporta video_info com total_frames + fps reais.
+	var info: Variant = payload.get("video_info", {})
+	if info is Dictionary:
+		var fps: float = float(info.get("fps", 0.0))
+		var total: int = int(info.get("total_frames", 0))
+		if fps > 0.0 and total > 0:
+			return int(round(float(total) / fps))
+	# Fallback: assume ~30fps.
+	var frames: Array = payload.get("frames", [])
+	return int(round(float(frames.size()) / 30.0))
 
 
-## TODO: implementar comparação real entre referência e captura.
-## Por hora retorna um valor simulado para permitir testar o fluxo.
-func _score_single(_reference: Dictionary, _capture: Dictionary) -> float:
-	return randf_range(0.5, 1.0)
+func _stars_for_precision(precision: float) -> int:
+	if precision >= 0.9:
+		return 3
+	elif precision >= 0.7:
+		return 2
+	elif precision >= 0.5:
+		return 1
+	return 0
 
 
-## Aplica os stats no Global / sistema de save do jogador.
-## Adapte para a sua arquitetura real (autoload, signal bus, etc).
-func _apply_player_stats(xp_gained: int, accuracy: float) -> void:
-	if Engine.has_singleton("Global"):
-		var global := Engine.get_singleton("Global")
-		if global.has_method("add_player_xp"):
-			global.add_player_xp(xp_gained)
-		if global.has_method("register_lesson_attempt"):
-			global.register_lesson_attempt(current_lesson.id, accuracy)
+func _update_stars(num: int) -> void:
+	for i in range(stars.get_child_count()):
+		var star: Label = stars.get_child(i)
+		if i < num:
+			star.text = "★"
+			star.modulate = Color(1.0, 0.78, 0.2)
+		else:
+			star.text = "☆"
+			star.modulate = Color(0.85, 0.88, 0.92)
+
+
+func _format_time(total_seconds: int) -> String:
+	var m := total_seconds / 60
+	var s := total_seconds % 60
+	return "%02d:%02d" % [m, s]

@@ -1,5 +1,7 @@
 [gd_resource type="Theme" format=3 uid="uid://bwvd7d8yfgkr1"]
 
+[ext_resource type="FontFile" uid="uid://b3wd47c08msut" path="res://GUI/fonts/PlayfairDisplay-VariableFont_wght.ttf" id="1_8r7b0"]
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_clsnl"]
 content_margin_left = 18.0
 content_margin_top = 12.0
@@ -310,6 +312,7 @@ Button/colors/font_color = Color(0.28, 0.24, 0.36, 1)
 Button/colors/font_disabled_color = Color(0.28, 0.24, 0.36, 0.35)
 Button/colors/font_hover_color = Color(0.24, 0.2, 0.32, 1)
 Button/colors/font_pressed_color = Color(0.4, 0.28, 0.18, 1)
+Button/fonts/font = ExtResource("1_8r7b0")
 Button/styles/disabled = SubResource("StyleBoxFlat_clsnl")
 Button/styles/hover = SubResource("StyleBoxFlat_8r7b0")
 Button/styles/normal = SubResource("StyleBoxFlat_ufdbx")
