@@ -51,6 +51,5 @@ func go_to_recording() -> void:
 func go_to_feedback() -> void:
 	transition_to(State.FEEDBACK)
 
-
 func restart_lesson() -> void:
 	transition_to(State.SIGN_SHOWCASE)

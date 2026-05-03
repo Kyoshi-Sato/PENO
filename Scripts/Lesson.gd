@@ -1,21 +1,31 @@
 class_name Lesson
-extends Resource
+extends RefCounted
+## Modelo de uma lição retornada pela API.
+## Contém o nome do exercício, o array bruto dos sinais (com landmarks
+## de referência em json_sinal) e a AnimationLibrary já montada com
+## todas as animações dos sinais, prontas para serem tocadas pelo
+## AnimationPlayer do Libra.
 
-## Recurso que representa uma lição de gesto/sinal.
-## Cada lição tem um id, um conjunto de animações que o avatar executa para ensinar
-## e um conjunto de JSONs de referência para comparação com a gravação do aluno.
+var lesson_id: int
+var nome_exercicio: String
+## Array de Dictionary, cada um com:
+##   { "nome_sinal": String, "json_sinal": Dictionary }
+## (anim_lib foi consumido na construção da animation_library)
+var sinais: Array = []
+## AnimationLibrary com uma Animation por sinal.
+## A key de cada animação é o `nome_sinal`.
+var animation_library: AnimationLibrary
 
-@export var id: StringName = &""
-@export var lesson_name: String = ""
-@export var description: String = ""
 
-## Caminhos (res://...) para os arquivos JSON de validação do gesto.
-## Cada JSON contém os landmarks de referência capturados previamente.
-@export var validation_jsons: Array[String] = []
+func get_sign_names() -> PackedStringArray:
+	var names := PackedStringArray()
+	for s: Variant in sinais:
+		names.append(s.get("nome_sinal", ""))
+	return names
 
-## Nomes das animações que devem ser tocadas no AnimationPlayer do avatar.
-## Ex.: "Libra2Anim/HelloSign". A ordem deve casar com os JSONs quando aplicável.
-@export var animation_names: Array[StringName] = []
 
-## XP / pontuação concedida ao concluir com sucesso.
-@export var reward_xp: int = 10
+func get_sign(nome_sinal: String) -> Dictionary:
+	for s: Variant in sinais:
+		if s.get("nome_sinal", "") == nome_sinal:
+			return s
+	return {}
