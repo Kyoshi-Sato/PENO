@@ -11,7 +11,7 @@ var nome_exercicio: String
 ## Array de Dictionary, cada um com:
 ##   { "nome_sinal": String, "json_sinal": Dictionary }
 ## (anim_lib foi consumido na construção da animation_library)
-var sinais: Array = []
+var sinais: Array[Dictionary] = []
 ## AnimationLibrary com uma Animation por sinal.
 ## A key de cada animação é o `nome_sinal`.
 var animation_library: AnimationLibrary
@@ -19,13 +19,13 @@ var animation_library: AnimationLibrary
 
 func get_sign_names() -> PackedStringArray:
 	var names := PackedStringArray()
-	for s: Variant in sinais:
+	for s in sinais:
 		names.append(s.get("nome_sinal", ""))
 	return names
 
 
 func get_sign(nome_sinal: String) -> Dictionary:
-	for s: Variant in sinais:
+	for s in sinais:
 		if s.get("nome_sinal", "") == nome_sinal:
 			return s
 	return {}

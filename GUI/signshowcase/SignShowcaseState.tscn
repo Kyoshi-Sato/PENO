@@ -2,28 +2,26 @@
 
 [ext_resource type="Script" uid="uid://bvwxc6fthc42r" path="res://GUI/signshowcase/SignShowcaseState.gd" id="1_showcase"]
 
-[sub_resource type="StyleBoxFlat" id="card_bottom"]
-bg_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 24
-corner_radius_top_right = 24
-corner_radius_bottom_left = 0
-corner_radius_bottom_right = 0
-shadow_color = Color(0, 0, 0, 0.08)
-shadow_size = 12
-shadow_offset = Vector2(0, -2)
-
 [sub_resource type="StyleBoxFlat" id="category_pill"]
-bg_color = Color(0.92, 0.94, 1, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_left = 16
-corner_radius_bottom_right = 16
 content_margin_left = 14.0
 content_margin_top = 6.0
 content_margin_right = 14.0
 content_margin_bottom = 6.0
+bg_color = Color(0.92, 0.94, 1, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
 
-[node name="SignShowcaseState" type="Control"]
+[sub_resource type="StyleBoxFlat" id="card_bottom"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+shadow_color = Color(0, 0, 0, 0.08)
+shadow_size = 12
+shadow_offset = Vector2(0, -2)
+
+[node name="SignShowcaseState" type="Control" unique_id=1379722570]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -33,7 +31,7 @@ grow_vertical = 2
 mouse_filter = 1
 script = ExtResource("1_showcase")
 
-[node name="TopHeader" type="MarginContainer" parent="."]
+[node name="TopHeader" type="MarginContainer" parent="." unique_id=1710665845]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -43,49 +41,49 @@ grow_horizontal = 2
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_right = 24
 
-[node name="VBox" type="VBoxContainer" parent="TopHeader"]
+[node name="VBox" type="VBoxContainer" parent="TopHeader" unique_id=193722265]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="TopRow" type="HBoxContainer" parent="TopHeader/VBox"]
+[node name="TopRow" type="HBoxContainer" parent="TopHeader/VBox" unique_id=729929930]
 layout_mode = 2
 
-[node name="LessonIndexLabel" type="Label" parent="TopHeader/VBox/TopRow"]
+[node name="LessonIndexLabel" type="Label" parent="TopHeader/VBox/TopRow" unique_id=309708549]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
 text = "Lição 03"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18
 
-[node name="FavoriteButton" type="Button" parent="TopHeader/VBox/TopRow"]
+[node name="FavoriteButton" type="Button" parent="TopHeader/VBox/TopRow" unique_id=1344058079]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(36, 36)
-flat = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
 toggle_mode = true
 text = "♡"
-theme_override_font_sizes/font_size = 22
+flat = true
 
-[node name="SignTitleLabel" type="Label" parent="TopHeader/VBox"]
+[node name="SignTitleLabel" type="Label" parent="TopHeader/VBox" unique_id=1298060451]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 32
 text = "Bom dia"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 32
 
-[node name="CategoryPillContainer" type="HBoxContainer" parent="TopHeader/VBox"]
+[node name="CategoryPillContainer" type="HBoxContainer" parent="TopHeader/VBox" unique_id=99709984]
 layout_mode = 2
 alignment = 1
 
-[node name="CategoryPill" type="Label" parent="TopHeader/VBox/CategoryPillContainer"]
+[node name="CategoryPill" type="Label" parent="TopHeader/VBox/CategoryPillContainer" unique_id=2136075188]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Cumprimentos"
 theme_override_font_sizes/font_size = 14
 theme_override_styles/normal = SubResource("category_pill")
+text = "Cumprimentos"
 
-[node name="BottomCard" type="PanelContainer" parent="."]
+[node name="BottomCard" type="PanelContainer" parent="." unique_id=1720881892]
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
@@ -96,48 +94,48 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_styles/panel = SubResource("card_bottom")
 
-[node name="Margin" type="MarginContainer" parent="BottomCard"]
+[node name="Margin" type="MarginContainer" parent="BottomCard" unique_id=872425535]
 layout_mode = 2
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 32
 
-[node name="VBox" type="VBoxContainer" parent="BottomCard/Margin"]
+[node name="VBox" type="VBoxContainer" parent="BottomCard/Margin" unique_id=1204586883]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="ObserveLabel" type="Label" parent="BottomCard/Margin/VBox"]
+[node name="ObserveLabel" type="Label" parent="BottomCard/Margin/VBox" unique_id=1549530839]
 layout_mode = 2
+theme_override_font_sizes/font_size = 48
 text = "Observe o gesto"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18
 
-[node name="HintLabel" type="Label" parent="BottomCard/Margin/VBox"]
+[node name="HintLabel" type="Label" parent="BottomCard/Margin/VBox" unique_id=1684217849]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 48
 text = "Toque em \"Ver devagar\" para
 assistir em câmera lenta."
 horizontal_alignment = 1
 autowrap_mode = 3
-theme_override_font_sizes/font_size = 13
 
-[node name="Spacer" type="Control" parent="BottomCard/Margin/VBox"]
+[node name="Spacer" type="Control" parent="BottomCard/Margin/VBox" unique_id=1407930490]
 custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
 
-[node name="SlowButton" type="Button" parent="BottomCard/Margin/VBox"]
+[node name="SlowButton" type="Button" parent="BottomCard/Margin/VBox" unique_id=185408363]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
 text = "▶  Ver devagar"
-theme_override_font_sizes/font_size = 16
 flat = true
 
-[node name="PracticeButton" type="Button" parent="BottomCard/Margin/VBox"]
+[node name="PracticeButton" type="Button" parent="BottomCard/Margin/VBox" unique_id=1377352837]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
 theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 48
 text = "📷  Praticar agora"
-theme_override_font_sizes/font_size = 17

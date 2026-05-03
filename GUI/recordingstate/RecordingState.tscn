@@ -45,6 +45,15 @@ grow_vertical = 2
 mouse_filter = 1
 script = ExtResource("1_recording")
 
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1200725988]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
 [node name="TopPill" type="HBoxContainer" parent="." unique_id=767042982]
 layout_mode = 1
 anchors_preset = 5

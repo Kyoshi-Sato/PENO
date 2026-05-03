@@ -79,7 +79,7 @@ func on_capture_complete(export_data: Dictionary) -> void:
 	_phase = Phase.DONE
 	_tick_timer.stop()
 	lbl_countdown.visible = false
-
+	$ColorRect.hide()
 	var payload := {
 		"sign_id": _current_sign_name,
 		"frames": export_data.get("frames", []),
@@ -95,6 +95,7 @@ func _start_countdown() -> void:
 	_phase = Phase.COUNTDOWN
 	_ticks_remaining = COUNTDOWN_SECONDS
 	lbl_countdown.visible = true
+	$ColorRect.show()
 	lbl_countdown.text = str(_ticks_remaining)
 	_tick_timer.start()
 

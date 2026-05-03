@@ -109,7 +109,7 @@ func _on_lesson_response(_result: int, code: int, _headers: PackedStringArray, b
 
 func _build_lesson(lesson_id: int, payload: Dictionary) -> Lesson:
 	var lib := AnimationLibrary.new()
-	var sinais_limpos: Array = []
+	var sinais_limpos: Array[Dictionary] = []
 
 	for raw_sinal: Variant in payload.get("sinais", []):
 		if not raw_sinal is Dictionary:
@@ -137,9 +137,20 @@ func _build_lesson(lesson_id: int, payload: Dictionary) -> Lesson:
 			push_warning("Falha ao adicionar animação '%s' à library (erro %d)" % [nome, add_err])
 			continue
 
+		var raw_json: Variant = sinal.get("json_sinal", {})
+		var json_sinal: Dictionary = {}
+		if raw_json is Dictionary:
+			json_sinal = raw_json
+		elif raw_json is String and not (raw_json as String).is_empty():
+			var parsed: Variant = JSON.parse_string(raw_json)
+			if parsed is Dictionary:
+				json_sinal = parsed
+			else:
+				push_warning("json_sinal do sinal '%s' não pôde ser parseado" % nome)
+
 		sinais_limpos.append({
 			"nome_sinal": nome,
-			"json_sinal": sinal.get("json_sinal", {}),
+			"json_sinal": json_sinal,
 		})
 
 	if sinais_limpos.is_empty():
@@ -150,6 +161,10 @@ func _build_lesson(lesson_id: int, payload: Dictionary) -> Lesson:
 	lesson.nome_exercicio = payload.get("nome_exercicio", "")
 	lesson.sinais = sinais_limpos
 	lesson.animation_library = lib
+	print("[LessonService] sinais_limpos.size() = ", sinais_limpos.size())
+	for s: Variant in sinais_limpos:
+		print("  - nome: '", s.nome_sinal, "' | json_sinal keys: ", s.json_sinal.keys())
+		print("[LessonService] lesson.sinais.size() depois de atribuir = ", lesson.sinais.size())
 	return lesson
 
 

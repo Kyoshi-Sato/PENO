@@ -41,6 +41,5 @@ func _ready() -> void:
 	print("Exercício: ", exercicio["nome_exercicio"])
 	for sinal: Variant in exercicio["sinais"]:
 		print("Sinal: ", sinal["nome_sinal"])
-		print("Anim: ", sinal["anim_lib"])
-		print("Json: ", sinal["json_sinal"])
-		print("Animacao: ", sinal["json_sinal"])
+		#print("Anim: ", sinal["anim_lib"])
+		#print("Json: ", sinal["json_sinal"])
