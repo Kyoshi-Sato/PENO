@@ -15,12 +15,12 @@ const LIBRARY_NAME := &"licao"
 @export var debug_lesson_id: int = 1
 
 var lesson: Lesson
-var current_sign_index: int = 1
+var current_sign_index: int = 0
 
-@onready var state_machine: LessonStateMachine = $LessonStateMachine
-@onready var recording: RecordingState = $States/RecordingState
-@onready var sign_showcase: SignShowcaseState = $States/SignShowcaseState
-@onready var feedback: FeedbackState = $States/FeedbackState
+@onready var state_machine: Node = $LessonStateMachine
+@onready var sign_showcase: Control = $States/SignShowcaseState
+@onready var recording: Control = $States/RecordingState
+@onready var feedback: Control = $States/FeedbackState
 
 @onready var avatar_root: Node3D = $AvatarViewportContainer/AvatarViewport/Avatar
 @onready var animation_player: AnimationPlayer = $AvatarViewportContainer/AvatarViewport/Avatar/Libra2/Armature_002/AnimationPlayer
@@ -100,7 +100,36 @@ func _on_enter_showcase() -> void:
 
 func _on_enter_recording() -> void:
 	_show_only(recording)
-	recording.begin(lesson, current_sign_index)
+	var duration := _compute_capture_duration()
+	recording.begin(lesson, current_sign_index, duration)
+
+
+## Duração da gravação = duração da animação do sinal atual + 2 segundos
+## de margem (pra dar tempo do usuário começar e terminar com folga).
+## Retorna -1.0 se não conseguir calcular (RecordingState usa o default).
+const CAPTURE_MARGIN_SECONDS := 2.0
+
+func _compute_capture_duration() -> float:
+	if lesson == null or animation_player == null:
+		return -1.0
+	if current_sign_index < 0 or current_sign_index >= lesson.sinais.size():
+		return -1.0
+
+	var sinal: Dictionary = lesson.sinais[current_sign_index]
+	var nome: String = String(sinal.get("nome_sinal", ""))
+	if nome.is_empty():
+		return -1.0
+
+	var anim_path := "%s/%s" % [LIBRARY_NAME, nome]
+	if not animation_player.has_animation(anim_path):
+		push_warning("Animação '%s' não encontrada — usando duração default" % anim_path)
+		return -1.0
+
+	var anim: Animation = animation_player.get_animation(anim_path)
+	if anim == null:
+		return -1.0
+
+	return anim.length + CAPTURE_MARGIN_SECONDS
 
 
 func _on_enter_feedback() -> void:
@@ -113,10 +142,24 @@ var _last_payload: Dictionary = {}
 
 # ---------- HOLISTIC ----------
 
-## RecordingState terminou o countdown e quer iniciar a gravação de 10s.
-func _on_request_start_capture(tempo:int) -> void:
-	if holistic and holistic.has_method("_begin_capture"):
-		holistic._begin_capture(tempo)
+## RecordingState terminou o countdown e quer iniciar a gravação.
+## duration_seconds: tempo total que o holistic deve gravar.
+func _on_request_start_capture(duration_seconds: float) -> void:
+	if not holistic:
+		push_warning("HolisticLandmarker indisponível")
+		return
+
+	# Configura a duração antes de iniciar (propriedade @export do holistic).
+	if duration_seconds > 0.0:
+		holistic.capture_duration_seconds = duration_seconds
+		# O timer interno do holistic já existe (criado no _ready dele) e
+		# usa wait_time = capture_duration_seconds. Precisamos atualizar o
+		# wait_time também porque o Timer não relê o @export automaticamente.
+		if holistic.capture_timer != null:
+			holistic.capture_timer.wait_time = duration_seconds
+
+	if holistic.has_method("_begin_capture"):
+		holistic._begin_capture(duration_seconds)
 	else:
 		push_warning("HolisticLandmarker._begin_capture() indisponível")
 

@@ -2,11 +2,13 @@ class_name RecordingState
 extends Control
 ## Estado de gravação. Fluxo:
 ##
-##   1. begin() é chamado pela LessonScreen quando o estado fica visível
+##   1. begin(lesson, sign_index, duration) é chamado pela LessonScreen
+##      quando o estado fica visível. A duration vem do animation_player
+##      (length da animação + margem) e é repassada pro holistic.
 ##   2. Mostra countdown 3 → 2 → 1 → "Vai!" (3 segundos)
-##   3. Emite `request_start_capture` para a LessonScreen chamar
-##      holistic._begin_capture() (que grava 10s e emite landmarks_detected)
-##   4. Durante os 10s, mostra contador regressivo "Gravando Xs"
+##   3. Emite `request_start_capture(duration_seconds)` para a LessonScreen
+##      configurar e chamar holistic._begin_capture()
+##   4. Durante a gravação, mostra contador regressivo "Gravando Xs"
 ##   5. Ao receber on_capture_complete(payload), emite `recording_finished`
 ##
 ## Cancelamento (botão "Cancelar"):
@@ -15,11 +17,12 @@ extends Control
 
 signal recording_finished(payload: Dictionary)
 signal cancel_requested
-signal request_start_capture(tempo:int)
+signal request_start_capture(duration_seconds: float)
 signal request_reset_capture
 
 const COUNTDOWN_SECONDS := 3
-const RECORDING_SECONDS := 10
+## Fallback caso a LessonScreen não passe duração.
+const DEFAULT_RECORDING_SECONDS := 10
 
 enum Phase { IDLE, COUNTDOWN, RECORDING, DONE }
 
@@ -37,6 +40,10 @@ var _reference_landmarks: Dictionary = {}
 var _current_sign_name: String = ""
 var _tick_timer: Timer
 var _ticks_remaining: int = 0
+## Duração total da gravação em segundos (vem da animação + margem).
+var _recording_seconds: int = DEFAULT_RECORDING_SECONDS
+## Mesma coisa em float, para passar com precisão pro holistic.
+var _recording_seconds_f: float = float(DEFAULT_RECORDING_SECONDS)
 
 
 func _ready() -> void:
@@ -50,7 +57,9 @@ func _ready() -> void:
 
 
 ## Chamado pela LessonScreen ao entrar neste estado.
-func begin(lesson: Lesson, sign_index: int) -> void:
+## duration_seconds: tempo total de captura, calculado a partir da animação
+##                   (animation.length + margem). Se <= 0, usa o default.
+func begin(lesson: Lesson, sign_index: int, duration_seconds: float = -1.0) -> void:
 	if lesson == null or lesson.sinais.is_empty():
 		return
 
@@ -59,6 +68,14 @@ func begin(lesson: Lesson, sign_index: int) -> void:
 	_current_sign_name = String(sinal.get("nome_sinal", ""))
 	var ref: Variant = sinal.get("json_sinal", {})
 	_reference_landmarks = ref if ref is Dictionary else {}
+
+	# Define quanto tempo vamos gravar.
+	if duration_seconds > 0.0:
+		_recording_seconds_f = duration_seconds
+		_recording_seconds = int(ceilf(duration_seconds))
+	else:
+		_recording_seconds_f = float(DEFAULT_RECORDING_SECONDS)
+		_recording_seconds = DEFAULT_RECORDING_SECONDS
 
 	lbl_sign.text = _current_sign_name.capitalize()
 	ring.value = 0.0
@@ -70,16 +87,17 @@ func begin(lesson: Lesson, sign_index: int) -> void:
 	_start_countdown()
 
 
-## Chamado pela LessonScreen quando o HolisticLandmarker termina os 10s
+## Chamado pela LessonScreen quando o HolisticLandmarker termina a captura
 ## e emite o signal `landmarks_detected` com o JSON exportado.
 func on_capture_complete(export_data: Dictionary) -> void:
 	if _phase != Phase.RECORDING:
-		# Provavelmente cancelado — ignora.
 		return
 	_phase = Phase.DONE
 	_tick_timer.stop()
 	lbl_countdown.visible = false
-	$ColorRect.hide()
+	if has_node("ColorRect"):
+		$ColorRect.hide()
+
 	var payload := {
 		"sign_id": _current_sign_name,
 		"frames": export_data.get("frames", []),
@@ -95,19 +113,20 @@ func _start_countdown() -> void:
 	_phase = Phase.COUNTDOWN
 	_ticks_remaining = COUNTDOWN_SECONDS
 	lbl_countdown.visible = true
-	$ColorRect.show()
+	if has_node("ColorRect"):
+		$ColorRect.show()
 	lbl_countdown.text = str(_ticks_remaining)
 	_tick_timer.start()
 
 
 func _start_recording() -> void:
 	_phase = Phase.RECORDING
-	_ticks_remaining = RECORDING_SECONDS
-	# "Vai!" fica visível pelo 1º segundo de gravação. No próximo tick
-	# vira "Gravando 9s" e por aí vai.
+	_ticks_remaining = _recording_seconds
 	lbl_countdown.text = "Vai!"
 	lbl_hint.text = "Faça o sinal agora"
-	request_start_capture.emit(RECORDING_SECONDS)
+	# Emite a duração em float para a LessonScreen setar o holistic
+	# com precisão antes de chamar _begin_capture().
+	request_start_capture.emit(_recording_seconds_f)
 
 
 func _on_tick() -> void:
@@ -116,18 +135,13 @@ func _on_tick() -> void:
 	match _phase:
 		Phase.COUNTDOWN:
 			if _ticks_remaining > 0:
-				# Ainda no countdown: mostra "2", "1"
 				lbl_countdown.text = str(_ticks_remaining)
 			else:
-				# Chegou em zero: dispara captura E mostra "Vai!" simultaneamente.
-				# A captura começa AGORA, não no próximo tick.
 				_start_recording()
 		Phase.RECORDING:
 			if _ticks_remaining > 0:
 				lbl_countdown.text = "Gravando %ds" % _ticks_remaining
 			else:
-				# O timer interno de 10s do holistic dispara
-				# landmarks_detected logo após — esperamos esse signal.
 				lbl_countdown.text = "Processando..."
 				_tick_timer.stop()
 		_:
@@ -161,11 +175,11 @@ func _set_check(check_node: Control, status: String) -> void:
 # ---------- CANCELAMENTO ----------
 
 func _on_cancel_pressed() -> void:
-	# Para o tick local
 	_tick_timer.stop()
 	lbl_countdown.visible = false
+	if has_node("ColorRect"):
+		$ColorRect.hide()
 
-	# Se já tinha mandado iniciar captura, pede reset do holistic
 	if _phase == Phase.RECORDING:
 		request_reset_capture.emit()
 
