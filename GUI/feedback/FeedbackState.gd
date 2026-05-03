@@ -1,10 +1,10 @@
 class_name FeedbackState
 extends Control
-## Estado de feedback. Recebe o payload da gravação, calcula precisão /
-## tentativas / tempo, e mostra:
+## Estado de feedback. Recebe o payload da gravação, calcula precisão via
+## SignValidator (injetável), e mostra:
 ##   - "Parabéns! Muito bom!" + pill com nome do sinal
 ##   - 3 estrelas (preenchidas conforme nota)
-##   - "+40 XP"
+##   - "+XP"
 ##   - 3 cards: Precisão / Tentativas / Tempo
 ##   - Barra de progresso do módulo
 ##   - "Próxima lição" / "Ver módulos"
@@ -29,26 +29,35 @@ signal next_lesson_requested
 @onready var btn_next: Button = %NextLessonButton
 @onready var btn_modules: Button = %SeeModulesButton
 
+## Validator usado para comparar a gravação do usuário com a referência.
+## Deixe null para usar o MotionComparatorValidator padrão.
+## Para trocar de modelo: instancie outra subclasse de SignValidator e atribua.
+var validator: SignValidator = null
+
 var _attempts: int = 1
-var _start_time_ms: int = 0
+var _last_result: Dictionary = {}
 
 
 func _ready() -> void:
 	btn_next.pressed.connect(func() -> void: next_lesson_requested.emit())
-	btn_modules.pressed.connect(func()-> void: retry_requested.emit())
+	btn_modules.pressed.connect(func() -> void: retry_requested.emit())
+
+	if validator == null:
+		validator = MotionComparatorValidator.new()
 
 
 func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
 	if lesson == null:
 		return
+
 	var idx := clampi(sign_index, 0, lesson.sinais.size() - 1)
 	var sinal: Dictionary = lesson.sinais[idx]
 	var nome: String = String(sinal.get("nome_sinal", ""))
 
-	# Cálculo de precisão. Como ainda não há motor de validação real,
-	# usamos a mesma aproximação do RecordingState e expomos o gancho
-	# para uma futura implementação que compare frames vs reference.
-	var precision := _compute_precision(payload)
+	# A referência (json_sinal) já vem no formato {video_info, frames} do LessonService.
+	var reference: Dictionary = sinal.get("json_sinal", {}) as Dictionary
+
+	var precision := _compute_precision(payload, reference)
 	var time_seconds := _compute_time_seconds(payload)
 
 	lbl_title.text = "Parabéns!"
@@ -63,7 +72,7 @@ func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
 	lbl_attempts.text = str(_attempts)
 	lbl_time.text = _format_time(time_seconds)
 
-	# Progresso do módulo: usa o índice atual + 1 sobre o total de sinais.
+	# Progresso do módulo
 	var total := lesson.sinais.size()
 	var done := idx + 1
 	lbl_module_name.text = lesson.nome_exercicio
@@ -72,14 +81,27 @@ func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
 	lbl_progress_text.text = "%d / %d lições" % [done, total]
 
 
+## Retorna o resultado completo do último validate(), pra UI mais detalhada
+## (ex: tela de "ver detalhes" com precisão por mão, por osso etc).
+func get_last_result() -> Dictionary:
+	return _last_result
+
+
 # ---------- HEURÍSTICAS ----------
 
-func _compute_precision(payload: Dictionary) -> float:
-	var frames: Array = payload.get("frames", [])
-	# Placeholder: futuramente comparar frames vs payload["reference"].
-	if frames.is_empty():
+func _compute_precision(payload: Dictionary, reference: Dictionary) -> float:
+	if validator == null:
+		push_warning("FeedbackState: nenhum validator definido")
 		return 0.0
-	return clampf(0.6 + float(frames.size()) / 200.0, 0.0, 1.0)
+
+	var result: Dictionary = validator.validate(payload, reference)
+	_last_result = result
+
+	if not result.get("ok", false):
+		push_warning("Validação falhou: %s" % result.get("error", ""))
+		return 0.0
+
+	return float(result.get("precision", 0.0))
 
 
 func _compute_time_seconds(payload: Dictionary) -> int:

@@ -2,29 +2,29 @@
 
 [ext_resource type="Script" uid="uid://dwgrv10wlxww4" path="res://GUI/feedback/FeedbackState.gd" id="1_feedback"]
 
-[sub_resource type="StyleBoxFlat" id="metric_card"]
-bg_color = Color(0.96, 0.97, 1, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_left = 14
-corner_radius_bottom_right = 14
-content_margin_left = 12.0
-content_margin_top = 12.0
-content_margin_right = 12.0
-content_margin_bottom = 12.0
-
 [sub_resource type="StyleBoxFlat" id="sign_pill"]
-bg_color = Color(0.92, 0.94, 1, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_left = 18
-corner_radius_bottom_right = 18
 content_margin_left = 16.0
 content_margin_top = 8.0
 content_margin_right = 16.0
 content_margin_bottom = 8.0
+bg_color = Color(0.92, 0.94, 1, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
 
-[node name="FeedbackState" type="Control"]
+[sub_resource type="StyleBoxFlat" id="metric_card"]
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.96, 0.97, 1, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[node name="FeedbackState" type="Control" unique_id=255724457]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -34,7 +34,7 @@ grow_vertical = 2
 mouse_filter = 1
 script = ExtResource("1_feedback")
 
-[node name="Scroll" type="ScrollContainer" parent="."]
+[node name="Scroll" type="ScrollContainer" parent="." unique_id=1207487539]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -43,7 +43,7 @@ grow_horizontal = 2
 grow_vertical = 2
 horizontal_scroll_mode = 0
 
-[node name="Margin" type="MarginContainer" parent="Scroll"]
+[node name="Margin" type="MarginContainer" parent="Scroll" unique_id=798068295]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -52,197 +52,197 @@ theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 24
 
-[node name="VBox" type="VBoxContainer" parent="Scroll/Margin"]
+[node name="VBox" type="VBoxContainer" parent="Scroll/Margin" unique_id=117060768]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="TitleLabel" type="Label" parent="Scroll/Margin/VBox"]
+[node name="TitleLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1885615315]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 18
 text = "Parabéns!"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18
 
-[node name="SubtitleLabel" type="Label" parent="Scroll/Margin/VBox"]
+[node name="SubtitleLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=86450696]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 28
 text = "Muito bom!
 Você concluiu a lição"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 28
 
-[node name="PillContainer" type="HBoxContainer" parent="Scroll/Margin/VBox"]
+[node name="PillContainer" type="HBoxContainer" parent="Scroll/Margin/VBox" unique_id=1644086009]
 layout_mode = 2
 alignment = 1
 
-[node name="SignPill" type="Label" parent="Scroll/Margin/VBox/PillContainer"]
+[node name="SignPill" type="Label" parent="Scroll/Margin/VBox/PillContainer" unique_id=967650120]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Bom dia"
 theme_override_font_sizes/font_size = 14
 theme_override_styles/normal = SubResource("sign_pill")
+text = "Bom dia"
 
-[node name="Stars" type="HBoxContainer" parent="Scroll/Margin/VBox"]
+[node name="Stars" type="HBoxContainer" parent="Scroll/Margin/VBox" unique_id=1736075231]
 unique_name_in_owner = true
 layout_mode = 2
-alignment = 1
 theme_override_constants/separation = 12
+alignment = 1
 
-[node name="Star1" type="Label" parent="Scroll/Margin/VBox/Stars"]
+[node name="Star1" type="Label" parent="Scroll/Margin/VBox/Stars" unique_id=2102711205]
 layout_mode = 2
-text = "★"
 theme_override_font_sizes/font_size = 56
-
-[node name="Star2" type="Label" parent="Scroll/Margin/VBox/Stars"]
-layout_mode = 2
 text = "★"
+
+[node name="Star2" type="Label" parent="Scroll/Margin/VBox/Stars" unique_id=759231226]
+layout_mode = 2
 theme_override_font_sizes/font_size = 72
-
-[node name="Star3" type="Label" parent="Scroll/Margin/VBox/Stars"]
-layout_mode = 2
 text = "★"
-theme_override_font_sizes/font_size = 56
 
-[node name="XPLabel" type="Label" parent="Scroll/Margin/VBox"]
+[node name="Star3" type="Label" parent="Scroll/Margin/VBox/Stars" unique_id=573211793]
+layout_mode = 2
+theme_override_font_sizes/font_size = 56
+text = "★"
+
+[node name="XPLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1829077860]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 16
 text = "+ 40 XP"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 16
 
-[node name="DesempenhoLabel" type="Label" parent="Scroll/Margin/VBox"]
+[node name="DesempenhoLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1863321090]
 layout_mode = 2
+theme_override_font_sizes/font_size = 15
 text = "Seu desempenho"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 15
 
-[node name="MetricsRow" type="HBoxContainer" parent="Scroll/Margin/VBox"]
+[node name="MetricsRow" type="HBoxContainer" parent="Scroll/Margin/VBox" unique_id=453230445]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="PrecisionCard" type="PanelContainer" parent="Scroll/Margin/VBox/MetricsRow"]
+[node name="PrecisionCard" type="PanelContainer" parent="Scroll/Margin/VBox/MetricsRow" unique_id=469020199]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("metric_card")
 
-[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard"]
+[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard" unique_id=828627046]
 layout_mode = 2
 alignment = 1
 
-[node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard/VBox"]
+[node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard/VBox" unique_id=1250943957]
 layout_mode = 2
+theme_override_font_sizes/font_size = 12
 text = "Precisão"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 12
 
-[node name="PrecisionValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard/VBox"]
+[node name="PrecisionValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard/VBox" unique_id=2060312266]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 22
 text = "82%"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 22
 
-[node name="AttemptsCard" type="PanelContainer" parent="Scroll/Margin/VBox/MetricsRow"]
+[node name="AttemptsCard" type="PanelContainer" parent="Scroll/Margin/VBox/MetricsRow" unique_id=1088872581]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("metric_card")
 
-[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard"]
+[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard" unique_id=1550582043]
 layout_mode = 2
 alignment = 1
 
-[node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard/VBox"]
+[node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard/VBox" unique_id=2144755265]
 layout_mode = 2
+theme_override_font_sizes/font_size = 12
 text = "Tentativas"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 12
 
-[node name="AttemptsValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard/VBox"]
+[node name="AttemptsValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard/VBox" unique_id=933873668]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 22
 text = "1"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 22
 
-[node name="TimeCard" type="PanelContainer" parent="Scroll/Margin/VBox/MetricsRow"]
+[node name="TimeCard" type="PanelContainer" parent="Scroll/Margin/VBox/MetricsRow" unique_id=1539713335]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("metric_card")
 
-[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/MetricsRow/TimeCard"]
+[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/MetricsRow/TimeCard" unique_id=1118732895]
 layout_mode = 2
 alignment = 1
 
-[node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/TimeCard/VBox"]
+[node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/TimeCard/VBox" unique_id=46122600]
 layout_mode = 2
+theme_override_font_sizes/font_size = 12
 text = "Tempo"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 12
 
-[node name="TimeValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/TimeCard/VBox"]
+[node name="TimeValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/TimeCard/VBox" unique_id=1540429885]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 22
 text = "00:18"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 22
 
-[node name="ContinueLabel" type="Label" parent="Scroll/Margin/VBox"]
+[node name="ContinueLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1026496109]
 layout_mode = 2
+theme_override_font_sizes/font_size = 18
 text = "Continue assim!"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18
 
-[node name="EncourageLabel" type="Label" parent="Scroll/Margin/VBox"]
+[node name="EncourageLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1405714095]
 layout_mode = 2
+theme_override_font_sizes/font_size = 13
 text = "Você está mandando muito bem."
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 13
 
-[node name="ModuleProgressContainer" type="VBoxContainer" parent="Scroll/Margin/VBox"]
+[node name="ModuleProgressContainer" type="VBoxContainer" parent="Scroll/Margin/VBox" unique_id=1083519076]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="HeaderRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ModuleProgressContainer"]
+[node name="HeaderRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ModuleProgressContainer" unique_id=231329153]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer/HeaderRow"]
+[node name="Label" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer/HeaderRow" unique_id=1914458323]
 layout_mode = 2
-text = "Progresso do módulo"
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
+text = "Progresso do módulo"
 
-[node name="ModuleNameLabel" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer"]
+[node name="ModuleNameLabel" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer" unique_id=1064756339]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Cumprimentos"
 theme_override_font_sizes/font_size = 14
+text = "Cumprimentos"
 
-[node name="ModuleProgress" type="ProgressBar" parent="Scroll/Margin/VBox/ModuleProgressContainer"]
+[node name="ModuleProgress" type="ProgressBar" parent="Scroll/Margin/VBox/ModuleProgressContainer" unique_id=370041936]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
 max_value = 12.0
 value = 8.0
 show_percentage = false
 
-[node name="ModuleProgressText" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer"]
+[node name="ModuleProgressText" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer" unique_id=2001042939]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_font_sizes/font_size = 11
 text = "8 / 12 lições"
 horizontal_alignment = 2
-theme_override_font_sizes/font_size = 11
 
-[node name="NextLessonButton" type="Button" parent="Scroll/Margin/VBox"]
+[node name="NextLessonButton" type="Button" parent="Scroll/Margin/VBox" unique_id=527106210]
 unique_name_in_owner = true
-layout_mode = 2
 custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
 theme_type_variation = &"PrimaryButton"
-text = "Próxima lição"
 theme_override_font_sizes/font_size = 17
+text = "Próxima lição"
 
-[node name="SeeModulesButton" type="Button" parent="Scroll/Margin/VBox"]
+[node name="SeeModulesButton" type="Button" parent="Scroll/Margin/VBox" unique_id=131586330]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Ver módulos"
 theme_override_font_sizes/font_size = 14
+text = "Ver módulos"
 flat = true
