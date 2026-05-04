@@ -188,7 +188,7 @@ func _on_play_animation(animation_name: StringName, speed: float = 1.0) -> void:
 		path = "%s/%s" % [LIBRARY_NAME, path]
 
 	if animation_player.has_animation(path):
-		animation_player.play(path, -1, speed)
+		animation_player.play(path, 0.25, speed)
 	else:
 		push_warning("Animação não encontrada: %s" % path)
 
