@@ -55,32 +55,6 @@ light_energy = 1.2
 
 [node name="Avatar" parent="AvatarViewportContainer/AvatarViewport" unique_id=585341856 instance=ExtResource("7_avatar")]
 
-[node name="Back" type="Button" parent="." unique_id=1767193946]
-unique_name_in_owner = true
-layout_mode = 1
-offset_left = 32.0
-offset_top = 40.0
-offset_right = 144.0
-offset_bottom = 152.0
-theme_override_font_sizes/font_size = 56
-text = "<"
-flat = true
-
-[node name="Settings" type="Button" parent="." unique_id=548118016]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -144.0
-offset_top = 40.0
-offset_right = -32.0
-offset_bottom = 152.0
-grow_horizontal = 0
-theme_override_font_sizes/font_size = 48
-text = "⚙"
-flat = true
-
 [node name="States" type="Control" parent="." unique_id=1317616996]
 layout_mode = 1
 anchors_preset = 15
@@ -116,3 +90,29 @@ grow_vertical = 1
 
 [node name="CameraSelectorDialog" parent="." unique_id=1673841510 instance=ExtResource("9_camera_dialog")]
 oversampling_override = 1.0
+
+[node name="Back" type="Button" parent="." unique_id=1767193946]
+unique_name_in_owner = true
+layout_mode = 1
+offset_left = 32.0
+offset_top = 40.0
+offset_right = 144.0
+offset_bottom = 152.0
+theme_override_font_sizes/font_size = 56
+text = "<"
+flat = true
+
+[node name="Settings" type="Button" parent="." unique_id=548118016]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -144.0
+offset_top = 40.0
+offset_right = -32.0
+offset_bottom = 152.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 48
+text = "⚙"
+flat = true
