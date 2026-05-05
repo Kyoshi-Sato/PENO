@@ -3,7 +3,6 @@
 [ext_resource type="PackedScene" uid="uid://cu2jsegm1nbtf" path="res://GUI/vision/VisionTask.tscn" id="1_40wvd"]
 [ext_resource type="Script" uid="uid://g7810jly3m4a" path="res://GUI/vision/holistic_landmarker/HolisticLandmarker.gd" id="2_58jts"]
 
-
 [node name="VisionTask" unique_id=449113624 instance=ExtResource("1_40wvd")]
 script = ExtResource("2_58jts")
 capture_duration_seconds = 3.0

@@ -11,6 +11,10 @@ extends Control
 ##   4. Durante a gravação, mostra contador regressivo "Gravando Xs"
 ##   5. Ao receber on_capture_complete(payload), emite `recording_finished`
 ##
+## Preview de câmera:
+##   A LessonScreen chama bind_camera_textures(raw, annotated) com as
+##   texturas do HolisticLandmarker. O toggle "👁" alterna entre as duas.
+##
 ## Cancelamento (botão "Cancelar"):
 ##   - Durante countdown: aborta antes de iniciar a captura
 ##   - Durante gravação: pede reset do holistic e volta pro Showcase
@@ -21,7 +25,6 @@ signal request_start_capture(duration_seconds: float)
 signal request_reset_capture
 
 const COUNTDOWN_SECONDS := 3
-## Fallback caso a LessonScreen não passe duração.
 const DEFAULT_RECORDING_SECONDS := 10
 
 enum Phase { IDLE, COUNTDOWN, RECORDING, DONE }
@@ -35,19 +38,28 @@ enum Phase { IDLE, COUNTDOWN, RECORDING, DONE }
 @onready var lbl_countdown: Label = %CountdownLabel
 @onready var btn_cancel: Button = %CancelButton
 
+@onready var camera_preview: TextureRect = %CameraPreview
+@onready var btn_overlay_toggle: Button = %OverlayToggle
+@onready var color_rect: ColorRect = $ColorRect
+
 var _phase: Phase = Phase.IDLE
 var _reference_landmarks: Dictionary = {}
 var _current_sign_name: String = ""
 var _tick_timer: Timer
 var _ticks_remaining: int = 0
-## Duração total da gravação em segundos (vem da animação + margem).
 var _recording_seconds: int = DEFAULT_RECORDING_SECONDS
-## Mesma coisa em float, para passar com precisão pro holistic.
 var _recording_seconds_f: float = float(DEFAULT_RECORDING_SECONDS)
+
+## Texturas vindas do HolisticLandmarker (injetadas pela LessonScreen).
+var _raw_texture: Texture2D = null
+var _annotated_texture: Texture2D = null
+## true = mostra landmarks por cima; false = só câmera crua.
+var _overlay_enabled: bool = true
 
 
 func _ready() -> void:
 	btn_cancel.pressed.connect(_on_cancel_pressed)
+	btn_overlay_toggle.pressed.connect(_on_overlay_toggle)
 
 	_tick_timer = Timer.new()
 	_tick_timer.wait_time = 1.0
@@ -55,10 +67,27 @@ func _ready() -> void:
 	add_child(_tick_timer)
 	_tick_timer.timeout.connect(_on_tick)
 
+	camera_preview.visible = false
+	_update_overlay_button_label()
+
+
+## Injeta as texturas de preview vindas do HolisticLandmarker.
+## Chamado pela LessonScreen quando a câmera fica disponível.
+## raw: textura crua da câmera (sem landmarks)
+## annotated: textura com landmarks renderizados
+func bind_camera_textures(raw: Texture2D, annotated: Texture2D) -> void:
+	_raw_texture = raw
+	_annotated_texture = annotated
+	_apply_preview_texture()
+
+
+## true = câmera frontal (espelha horizontalmente o preview).
+func set_camera_mirrored(mirrored: bool) -> void:
+	if camera_preview:
+		camera_preview.flip_h = mirrored
+
 
 ## Chamado pela LessonScreen ao entrar neste estado.
-## duration_seconds: tempo total de captura, calculado a partir da animação
-##                   (animation.length + margem). Se <= 0, usa o default.
 func begin(lesson: Lesson, sign_index: int, duration_seconds: float = -1.0) -> void:
 	if lesson == null or lesson.sinais.is_empty():
 		return
@@ -69,7 +98,6 @@ func begin(lesson: Lesson, sign_index: int, duration_seconds: float = -1.0) -> v
 	var ref: Variant = sinal.get("json_sinal", {})
 	_reference_landmarks = ref if ref is Dictionary else {}
 
-	# Define quanto tempo vamos gravar.
 	if duration_seconds > 0.0:
 		_recording_seconds_f = duration_seconds
 		_recording_seconds = int(ceilf(duration_seconds))
@@ -84,19 +112,21 @@ func begin(lesson: Lesson, sign_index: int, duration_seconds: float = -1.0) -> v
 	_set_check(check_orientation, "pending")
 	lbl_hint.text = "Posicione-se em frente à câmera"
 
+	# Esconde preview no início — só aparece quando a gravação começar
+	camera_preview.visible = false
+	color_rect.show()
+
 	_start_countdown()
 
 
-## Chamado pela LessonScreen quando o HolisticLandmarker termina a captura
-## e emite o signal `landmarks_detected` com o JSON exportado.
 func on_capture_complete(export_data: Dictionary) -> void:
 	if _phase != Phase.RECORDING:
 		return
 	_phase = Phase.DONE
 	_tick_timer.stop()
 	lbl_countdown.visible = false
-	if has_node("ColorRect"):
-		$ColorRect.hide()
+	color_rect.hide()
+	camera_preview.visible = false
 
 	var payload := {
 		"sign_id": _current_sign_name,
@@ -113,8 +143,7 @@ func _start_countdown() -> void:
 	_phase = Phase.COUNTDOWN
 	_ticks_remaining = COUNTDOWN_SECONDS
 	lbl_countdown.visible = true
-	if has_node("ColorRect"):
-		$ColorRect.show()
+	color_rect.show()
 	lbl_countdown.text = str(_ticks_remaining)
 	_tick_timer.start()
 
@@ -124,8 +153,10 @@ func _start_recording() -> void:
 	_ticks_remaining = _recording_seconds
 	lbl_countdown.text = "Vai!"
 	lbl_hint.text = "Faça o sinal agora"
-	# Emite a duração em float para a LessonScreen setar o holistic
-	# com precisão antes de chamar _begin_capture().
+	# Câmera fica visível durante a gravação (cobre o ColorRect preto)
+	camera_preview.visible = true
+	color_rect.hide()
+	_apply_preview_texture()
 	request_start_capture.emit(_recording_seconds_f)
 
 
@@ -146,6 +177,32 @@ func _on_tick() -> void:
 				_tick_timer.stop()
 		_:
 			_tick_timer.stop()
+
+
+# ---------- PREVIEW DA CÂMERA ----------
+
+func _on_overlay_toggle() -> void:
+	_overlay_enabled = not _overlay_enabled
+	_update_overlay_button_label()
+	_apply_preview_texture()
+
+
+func _update_overlay_button_label() -> void:
+	if btn_overlay_toggle == null:
+		return
+	if _overlay_enabled:
+		btn_overlay_toggle.text = "👁  Pontos: ON"
+	else:
+		btn_overlay_toggle.text = "👁  Pontos: OFF"
+
+
+func _apply_preview_texture() -> void:
+	if camera_preview == null:
+		return
+	if _overlay_enabled and _annotated_texture != null:
+		camera_preview.texture = _annotated_texture
+	elif _raw_texture != null:
+		camera_preview.texture = _raw_texture
 
 
 # ---------- CHECKLIST ----------
@@ -177,8 +234,8 @@ func _set_check(check_node: Control, status: String) -> void:
 func _on_cancel_pressed() -> void:
 	_tick_timer.stop()
 	lbl_countdown.visible = false
-	if has_node("ColorRect"):
-		$ColorRect.hide()
+	color_rect.hide()
+	camera_preview.visible = false
 
 	if _phase == Phase.RECORDING:
 		request_reset_capture.emit()

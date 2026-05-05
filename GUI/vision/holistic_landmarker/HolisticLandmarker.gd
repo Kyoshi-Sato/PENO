@@ -17,6 +17,8 @@ var capture_frame_index := 0
 var capture_output_path := ""
 
 signal landmarks_detected
+## Emitido quando a câmera ativa muda (após start_camera_with_feed).
+signal camera_changed(feed_name: String)
 
 func _ready() -> void:
 	super()
@@ -37,22 +39,159 @@ func _reset() -> void:
 func _start_camera() -> void:
 	super()
 
-func _begin_capture(tempo: int) -> void:
+
+# ═══════════════════════════════════════════════════════════
+#  API PÚBLICA — SELEÇÃO E PREVIEW DE CÂMERA
+# ═══════════════════════════════════════════════════════════
+
+## Lista todas as câmeras disponíveis no sistema.
+## Retorna Array de Dictionary: [{ id, name, position, formats }, ...]
+## position: "front" | "back" | "unspecified"
+func list_available_cameras() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not CameraServer.monitoring_feeds:
+		CameraServer.monitoring_feeds = true
+	var feeds: Array[CameraFeed] = CameraServer.feeds()
+	for feed in feeds:
+		var pos_str := "unspecified"
+		match feed.get_position():
+			CameraFeed.FEED_FRONT: pos_str = "front"
+			CameraFeed.FEED_BACK:  pos_str = "back"
+		result.append({
+			"id": feed.get_id(),
+			"name": feed.get_name(),
+			"position": pos_str,
+			"formats": feed.get_formats(),
+		})
+	return result
+
+
+## Escolhe a "melhor" câmera disponível seguindo:
+##   1. Preferência por câmera frontal (selfie)
+##   2. Senão, a primeira disponível
+## Retorna o id da câmera escolhida, ou -1 se nenhuma disponível.
+func pick_best_camera_id() -> int:
+	var cameras := list_available_cameras()
+	if cameras.is_empty():
+		return -1
+
+	for cam in cameras:
+		if cam.get("position", "") == "front":
+			return int(cam.get("id", -1))
+
+	return int(cameras[0].get("id", -1))
+
+
+## Inicia a captura usando a câmera de id especificado.
+## Para a câmera anterior, escolhe a nova, seleciona o melhor formato
+## e ativa o feed. Retorna true em caso de sucesso.
+func start_camera_with_feed(feed_id: int, format_index: int = -1) -> bool:
+	# Para qualquer captura/feed anterior
+	_reset()
+
+	# Encontra o CameraFeed correspondente
+	var feeds: Array[CameraFeed] = CameraServer.feeds()
+	var target: CameraFeed = null
+	for feed in feeds:
+		if feed.get_id() == feed_id:
+			target = feed
+			break
+
+	if target == null:
+		push_warning("Nenhum CameraFeed encontrado para id=%d" % feed_id)
+		return false
+
+	camera_feed = target
+
+	# Escolhe o formato — se não especificado, pega o último (geralmente
+	# o de maior resolução).
+	var formats: Array = camera_feed.get_formats()
+	if formats.is_empty():
+		push_warning("Câmera '%s' não expõe formatos" % camera_feed.get_name())
+		return false
+
+	var idx := format_index
+	if idx < 0 or idx >= formats.size():
+		idx = _pick_reasonable_format_index(formats)
+
+	if not camera_feed.set_format(idx, {}):
+		push_warning("Falha ao setar formato %d para câmera '%s'" % [idx, camera_feed.get_name()])
+		return false
+
+	_start_camera()
+	camera_changed.emit(camera_feed.get_name())
+	return true
+
+
+## Heurística pra escolher um formato razoável: prefere ~720p, senão
+## o do meio da lista.
+func _pick_reasonable_format_index(formats: Array) -> int:
+	var best_idx := -1
+	var best_diff := INF
+	for i in range(formats.size()):
+		var f: Dictionary = formats[i] as Dictionary
+		var w: int = int(f.get("width", 0))
+		var h: int = int(f.get("height", 0))
+		if w == 0 or h == 0:
+			continue
+		var diff: float = absf(float(h) - 720.0)
+		if diff < best_diff:
+			best_diff = diff
+			best_idx = i
+	if best_idx >= 0:
+		return best_idx
+	return formats.size() / 2
+
+
+## Textura crua da câmera (sem overlay de landmarks).
+func get_camera_texture() -> Texture2D:
+	if camera_texture != null:
+		return camera_texture.texture
+	return null
+
+
+## Textura com overlay de landmarks renderizado (atualizada a cada frame
+## processado). Pode estar null nos primeiros frames.
+func get_annotated_texture() -> Texture2D:
+	if image_view != null:
+		return image_view.texture
+	return null
+
+
+## Útil pra UI: nome legível da câmera atualmente ativa.
+func get_active_camera_name() -> String:
+	if camera_feed != null:
+		return camera_feed.get_name()
+	return ""
+
+
+## Útil pra preview espelhar quando a câmera é frontal.
+func is_active_camera_front() -> bool:
+	if camera_feed == null:
+		return false
+	return camera_feed.get_position() == CameraFeed.FEED_FRONT
+
+
+# ═══════════════════════════════════════════════════════════
+#  CAPTURA (lógica original)
+# ═══════════════════════════════════════════════════════════
+
+func _begin_capture(tempo: float) -> void:
 	capture_frames.clear()
 	capture_frame_index = 0
 	capture_first_packet_ms = -1
 	capture_started_at_ms = Time.get_ticks_msec()
 	capture_active = true
-	
+
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
-	capture_output_path = "res://data/jsonxported/holistic_capture_%s.json" % stamp
+	capture_output_path = "user://anim_cache/holistic_capture_%s.json" % stamp
 
 	if capture_timer and not capture_timer.is_stopped():
 		capture_timer.stop()
 	capture_timer.wait_time = tempo
 	capture_timer.start()
 
-	print_debug("Captura iniciada por: %d segundos" % tempo)
+	print_debug("Captura iniciada por: %.2f segundos" % tempo)
 
 func _on_capture_timeout() -> void:
 	capture_active = false
@@ -78,8 +217,6 @@ func _init_task() -> void:
 	node.get_output_tag("POSE_LANDMARKS").connect_to(builder.get_output_tag("POSE_LANDMARKS"), "pose_landmarks")
 	node.get_output_tag("LEFT_HAND_LANDMARKS").connect_to(builder.get_output_tag("LEFT_HAND_LANDMARKS"), "left_hand_landmarks")
 	node.get_output_tag("RIGHT_HAND_LANDMARKS").connect_to(builder.get_output_tag("RIGHT_HAND_LANDMARKS"), "right_hand_landmarks")
-	#node.get_output_tag("FACE_LANDMARKS").connect_to(builder.get_output_tag("FACE_LANDMARKS"), "face_landmarks")
-	#node.get_output_tag("FACE_BLENDSHAPES").connect_to(builder.get_output_tag("FACE_BLENDSHAPES"), "face_blendshapes")
 	node.get_output_tag("IMAGE").connect_to(builder.get_output_tag("IMAGE"), "image_out")
 
 	var config := builder.get_config()
@@ -295,15 +432,20 @@ func _export_capture_json() -> void:
 		"frames": capture_frames
 	}
 
+	# Garante que o diretório existe (user:// é writable em build exportada)
+	var dir_path := capture_output_path.get_base_dir()
+	if not DirAccess.dir_exists_absolute(dir_path):
+		DirAccess.make_dir_recursive_absolute(dir_path)
+
 	var file := FileAccess.open(capture_output_path, FileAccess.WRITE)
 	if file == null:
 		push_error("Não foi possível criar o arquivo JSON em: " + capture_output_path)
-		return
+	else:
+		file.store_string(JSON.stringify(export_data, "\t"))
+		file.close()
+		print("JSON exportado em: ", ProjectSettings.globalize_path(capture_output_path))
 
-	file.store_string(JSON.stringify(export_data, "\t"))
-	file.close()
 	emit_signal("landmarks_detected", export_data)
-	print("JSON exportado em: ", ProjectSettings.globalize_path(capture_output_path))
 
 func show_blendshapes(classifications: Array) -> void:
 	lbl_blendshapes.text = ""

@@ -1,41 +1,41 @@
-[gd_scene format=3 uid="uid://ow4wtfh0h7bc"]
+[gd_scene load_steps=5 format=3 uid="uid://ow4wtfh0h7bc"]
 
-[ext_resource type="Script" uid="uid://cbp0yqnfeohb3" path="res://GUI/recordingstate/RecordingState.gd" id="1_recording"]
-[ext_resource type="Script" uid="uid://bga24jwnii2q" path="res://Scripts/PrecisionRing.gd" id="2_ring"]
+[ext_resource type="Script" path="res://GUI/recordingstate/RecordingState.gd" id="1_recording"]
+[ext_resource type="Script" path="res://Scripts/PrecisionRing.gd" id="2_ring"]
 
 [sub_resource type="StyleBoxFlat" id="sign_pill"]
-content_margin_left = 16.0
-content_margin_top = 8.0
-content_margin_right = 16.0
-content_margin_bottom = 8.0
-bg_color = Color(0.92, 0.94, 1, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
+content_margin_left = 32.0
+content_margin_top = 16.0
+content_margin_right = 32.0
+content_margin_bottom = 16.0
+bg_color = Color(0.92, 0.94, 1, 0.95)
+corner_radius_top_left = 36
+corner_radius_top_right = 36
+corner_radius_bottom_right = 36
+corner_radius_bottom_left = 36
 
 [sub_resource type="StyleBoxFlat" id="check_card"]
-content_margin_left = 12.0
-content_margin_top = 8.0
-content_margin_right = 12.0
-content_margin_bottom = 8.0
-bg_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
+content_margin_left = 24.0
+content_margin_top = 16.0
+content_margin_right = 24.0
+content_margin_bottom = 16.0
+bg_color = Color(1, 1, 1, 0.95)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
 shadow_color = Color(0, 0, 0, 0.06)
-shadow_size = 6
+shadow_size = 12
 
 [sub_resource type="StyleBoxFlat" id="card_bottom"]
 bg_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 24
-corner_radius_top_right = 24
+corner_radius_top_left = 48
+corner_radius_top_right = 48
 shadow_color = Color(0, 0, 0, 0.08)
-shadow_size = 12
-shadow_offset = Vector2(0, -2)
+shadow_size = 24
+shadow_offset = Vector2(0, -4)
 
-[node name="RecordingState" type="Control" unique_id=964654136]
+[node name="RecordingState" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -45,7 +45,7 @@ grow_vertical = 2
 mouse_filter = 1
 script = ExtResource("1_recording")
 
-[node name="ColorRect" type="ColorRect" parent="." unique_id=1200725988]
+[node name="ColorRect" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -54,37 +54,62 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 1)
 
-[node name="TopPill" type="HBoxContainer" parent="." unique_id=767042982]
+[node name="CameraPreview" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="TopPill" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -80.0
-offset_top = 24.0
-offset_right = 80.0
-offset_bottom = 60.0
+offset_left = -200.0
+offset_top = 60.0
+offset_right = 200.0
+offset_bottom = 140.0
 grow_horizontal = 2
-grow_vertical = 2
 alignment = 1
 
-[node name="SignPill" type="Label" parent="TopPill" unique_id=1308907349]
+[node name="SignPill" type="Label" parent="TopPill"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 36
 theme_override_styles/normal = SubResource("sign_pill")
 text = "Bom dia"
 
-[node name="PrecisionRing" type="Control" parent="." unique_id=2105573088]
+[node name="OverlayToggle" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -300.0
+offset_top = 60.0
+offset_right = -32.0
+offset_bottom = 152.0
+grow_horizontal = 0
+text = "👁  Pontos: ON"
+theme_override_font_sizes/font_size = 26
+
+[node name="PrecisionRing" type="Control" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 0
-offset_left = 24.0
-offset_top = 80.0
-offset_right = 124.0
-offset_bottom = 180.0
+offset_left = 48.0
+offset_top = 180.0
+offset_right = 248.0
+offset_bottom = 380.0
 script = ExtResource("2_ring")
 
-[node name="CountdownLabel" type="Label" parent="." unique_id=726393986]
+[node name="CountdownLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 8
@@ -92,146 +117,145 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -120.0
-offset_top = -80.0
-offset_right = 120.0
-offset_bottom = 80.0
+offset_left = -300.0
+offset_top = -200.0
+offset_right = 300.0
+offset_bottom = 200.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.5)
-theme_override_constants/outline_size = 8
-theme_override_font_sizes/font_size = 96
+theme_override_constants/outline_size = 16
+theme_override_font_sizes/font_size = 220
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="CheckList" type="VBoxContainer" parent="." unique_id=1853557386]
+[node name="CheckList" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 11
 anchor_left = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -220.0
-offset_top = 80.0
-offset_right = -16.0
-offset_bottom = 320.0
+offset_left = -440.0
+offset_top = 200.0
+offset_right = -32.0
+offset_bottom = 700.0
 grow_horizontal = 0
-grow_vertical = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 24
 
-[node name="CheckPosition" type="PanelContainer" parent="CheckList" unique_id=523426360]
+[node name="CheckPosition" type="PanelContainer" parent="CheckList"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_styles/panel = SubResource("check_card")
 
-[node name="HBox" type="HBoxContainer" parent="CheckList/CheckPosition" unique_id=863003363]
+[node name="HBox" type="HBoxContainer" parent="CheckList/CheckPosition"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 16
 
-[node name="Bullet" type="Label" parent="CheckList/CheckPosition/HBox" unique_id=416779362]
+[node name="Bullet" type="Label" parent="CheckList/CheckPosition/HBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 28
 text = "●"
 
-[node name="Text" type="Label" parent="CheckList/CheckPosition/HBox" unique_id=788299353]
+[node name="Text" type="Label" parent="CheckList/CheckPosition/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 24
 text = "Posição da mão
 correta"
 
-[node name="Icon" type="Label" parent="CheckList/CheckPosition/HBox" unique_id=1107657077]
+[node name="Icon" type="Label" parent="CheckList/CheckPosition/HBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 36
 text = "○"
 
-[node name="CheckMovement" type="PanelContainer" parent="CheckList" unique_id=1321415069]
+[node name="CheckMovement" type="PanelContainer" parent="CheckList"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_styles/panel = SubResource("check_card")
 
-[node name="HBox" type="HBoxContainer" parent="CheckList/CheckMovement" unique_id=422627305]
+[node name="HBox" type="HBoxContainer" parent="CheckList/CheckMovement"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 16
 
-[node name="Bullet" type="Label" parent="CheckList/CheckMovement/HBox" unique_id=2023135677]
+[node name="Bullet" type="Label" parent="CheckList/CheckMovement/HBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 28
 text = "●"
 
-[node name="Text" type="Label" parent="CheckList/CheckMovement/HBox" unique_id=1806660062]
+[node name="Text" type="Label" parent="CheckList/CheckMovement/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 24
 text = "Movimento
 correto"
 
-[node name="Icon" type="Label" parent="CheckList/CheckMovement/HBox" unique_id=345333411]
+[node name="Icon" type="Label" parent="CheckList/CheckMovement/HBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 36
 text = "○"
 
-[node name="CheckOrientation" type="PanelContainer" parent="CheckList" unique_id=1872104165]
+[node name="CheckOrientation" type="PanelContainer" parent="CheckList"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_styles/panel = SubResource("check_card")
 
-[node name="HBox" type="HBoxContainer" parent="CheckList/CheckOrientation" unique_id=660131318]
+[node name="HBox" type="HBoxContainer" parent="CheckList/CheckOrientation"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 16
 
-[node name="Bullet" type="Label" parent="CheckList/CheckOrientation/HBox" unique_id=110326121]
+[node name="Bullet" type="Label" parent="CheckList/CheckOrientation/HBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 28
 text = "●"
 
-[node name="Text" type="Label" parent="CheckList/CheckOrientation/HBox" unique_id=2054785759]
+[node name="Text" type="Label" parent="CheckList/CheckOrientation/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 24
 text = "Orientação
 correta"
 
-[node name="Icon" type="Label" parent="CheckList/CheckOrientation/HBox" unique_id=1827898401]
+[node name="Icon" type="Label" parent="CheckList/CheckOrientation/HBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 36
 text = "○"
 
-[node name="BottomCard" type="PanelContainer" parent="." unique_id=1948092316]
+[node name="BottomCard" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -140.0
+offset_top = -320.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_styles/panel = SubResource("card_bottom")
 
-[node name="Margin" type="MarginContainer" parent="BottomCard" unique_id=1544156002]
+[node name="Margin" type="MarginContainer" parent="BottomCard"]
 layout_mode = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_left = 48
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 48
+theme_override_constants/margin_bottom = 56
 
-[node name="VBox" type="VBoxContainer" parent="BottomCard/Margin" unique_id=1652135061]
+[node name="VBox" type="VBoxContainer" parent="BottomCard/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 32
 
-[node name="HintLabel" type="Label" parent="BottomCard/Margin/VBox" unique_id=1101750781]
+[node name="HintLabel" type="Label" parent="BottomCard/Margin/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 28
 text = "Posicione-se em frente à câmera"
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="CancelButton" type="Button" parent="BottomCard/Margin/VBox" unique_id=731346654]
+[node name="CancelButton" type="Button" parent="BottomCard/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 112)
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 32
 text = "Cancelar"
 flat = true

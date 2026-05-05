@@ -4,14 +4,12 @@ extends Control
 ## Tela principal de uma lição. Orquestra:
 ## - Avatar 3D (toca animações sob demanda via AnimationLibrary)
 ## - State Machine (SignShowcase -> Recording -> Feedback)
-## - Holistic Landmarker (gravação batch de 10s)
-##
-## A lição é buscada na API no _ready, usando o id que o LessonMapScreen
-## deixou em `Global.current_lesson_id`.
+## - Holistic Landmarker (gravação batch)
+## - Seleção de câmera (dialog acionado pela engrenagem)
 
 const LIBRARY_NAME := &"licao"
+const CAPTURE_MARGIN_SECONDS := 1.0
 
-## Pode ser preenchida no inspector para testes isolados sem passar pelo mapa.
 @export var debug_lesson_id: int = 1
 
 var lesson: Lesson
@@ -27,10 +25,17 @@ var current_sign_index: int = 0
 
 @onready var holistic: Node = $HolisticLandmarker
 @onready var btn_back: Button = %Back
+@onready var btn_settings: Button = %Settings
+@onready var camera_dialog: CameraSelectorDialog = $CameraSelectorDialog
+
+var _last_payload: Dictionary = {}
 
 
 func _ready() -> void:
 	btn_back.pressed.connect(_on_back)
+	btn_settings.pressed.connect(_on_settings_pressed)
+
+	camera_dialog.camera_selected.connect(_on_camera_selected)
 
 	# state_machine -> UI
 	state_machine.entered_sign_showcase.connect(_on_enter_showcase)
@@ -49,21 +54,26 @@ func _ready() -> void:
 	feedback.retry_requested.connect(_on_retry)
 	feedback.next_lesson_requested.connect(_on_next_lesson)
 
-	# holistic emite landmarks_detected UMA VEZ ao final dos 10s, com o
-	# JSON exportado completo. Repassamos pro RecordingState.
-	if holistic and holistic.has_signal("landmarks_detected"):
-		holistic.connect("landmarks_detected", _on_capture_complete)
+	if holistic:
+		if holistic.has_signal("landmarks_detected"):
+			holistic.connect("landmarks_detected", _on_capture_complete)
+		if holistic.has_signal("camera_changed"):
+			holistic.connect("camera_changed", _on_camera_changed)
 
-	# Esconde tudo até a lição carregar.
+	# Esconde os states até carregar a lição.
 	sign_showcase.visible = false
 	recording.visible = false
 	feedback.visible = false
+
+	# Pré-seleciona a melhor câmera disponível. Em web/mobile pode levar
+	# alguns frames pro CameraServer popular feeds — então fazemos call_deferred.
+	call_deferred("_auto_select_best_camera")
 
 	var lesson_id := debug_lesson_id
 	if lesson_id < 0:
 		lesson_id = Global.current_lesson_id
 	if lesson_id < 0:
-		push_error("Nenhuma lesson_id definida (Global.current_lesson_id e debug_lesson_id ambos < 0)")
+		push_error("Nenhuma lesson_id definida")
 		return
 
 	LessonService.fetch_lesson(lesson_id, _on_lesson_loaded, _on_lesson_failed)
@@ -85,6 +95,61 @@ func _on_lesson_failed(error: String) -> void:
 	push_error("Falha ao carregar lição: %s" % error)
 
 
+# ---------- CÂMERA ----------
+
+func _auto_select_best_camera() -> void:
+	if holistic == null or not holistic.has_method("pick_best_camera_id"):
+		return
+	var best_id: int = holistic.pick_best_camera_id()
+	if best_id < 0:
+		push_warning("Nenhuma câmera disponível para auto-seleção")
+		return
+	if not holistic.start_camera_with_feed(best_id):
+		push_warning("Falha ao iniciar a câmera id=%d" % best_id)
+
+
+func _on_settings_pressed() -> void:
+	if holistic == null:
+		return
+	var cameras: Array = holistic.list_available_cameras()
+	var current_id := -1
+	if holistic.camera_feed != null:
+		current_id = holistic.camera_feed.get_id()
+	camera_dialog.populate(cameras, current_id)
+	camera_dialog.popup_centered()
+
+
+func _on_camera_selected(feed_id: int) -> void:
+	if holistic and holistic.has_method("start_camera_with_feed"):
+		holistic.start_camera_with_feed(feed_id)
+
+
+## Sempre que a câmera ativa muda, re-injeta as texturas no RecordingState.
+func _on_camera_changed(_feed_name: String) -> void:
+	_inject_camera_textures()
+
+
+## Passa as texturas (crua + anotada) do holistic pro RecordingState.
+## Adia o acesso à `image_view.texture` porque ela é criada após o
+## primeiro frame processado.
+func _inject_camera_textures() -> void:
+	if holistic == null or recording == null:
+		return
+	if not recording.has_method("bind_camera_textures"):
+		return
+
+	var raw: Texture2D = null
+	var annotated: Texture2D = null
+	if holistic.has_method("get_camera_texture"):
+		raw = holistic.get_camera_texture()
+	if holistic.has_method("get_annotated_texture"):
+		annotated = holistic.get_annotated_texture()
+	recording.bind_camera_textures(raw, annotated)
+
+	if recording.has_method("set_camera_mirrored") and holistic.has_method("is_active_camera_front"):
+		recording.set_camera_mirrored(holistic.is_active_camera_front())
+
+
 # ---------- TRANSIÇÕES DE ESTADO ----------
 
 func _show_only(state_node: Control) -> void:
@@ -100,15 +165,19 @@ func _on_enter_showcase() -> void:
 
 func _on_enter_recording() -> void:
 	_show_only(recording)
+	# Garante que as texturas estão atualizadas (a anotada pode só existir
+	# depois do primeiro frame ser processado, então atualizamos toda vez).
+	_inject_camera_textures()
 	var duration := _compute_capture_duration()
 	recording.begin(lesson, current_sign_index, duration)
 
 
-## Duração da gravação = duração da animação do sinal atual + 2 segundos
-## de margem (pra dar tempo do usuário começar e terminar com folga).
-## Retorna -1.0 se não conseguir calcular (RecordingState usa o default).
-const CAPTURE_MARGIN_SECONDS := 1.0
+func _on_enter_feedback() -> void:
+	_show_only(feedback)
+	feedback.evaluate(lesson, current_sign_index, _last_payload)
 
+
+## Duração da gravação = duração da animação do sinal atual + margem.
 func _compute_capture_duration() -> float:
 	if lesson == null or animation_player == null:
 		return -1.0
@@ -132,29 +201,15 @@ func _compute_capture_duration() -> float:
 	return anim.length + CAPTURE_MARGIN_SECONDS
 
 
-func _on_enter_feedback() -> void:
-	_show_only(feedback)
-	feedback.evaluate(lesson, current_sign_index, _last_payload)
-
-
-var _last_payload: Dictionary = {}
-
-
 # ---------- HOLISTIC ----------
 
-## RecordingState terminou o countdown e quer iniciar a gravação.
-## duration_seconds: tempo total que o holistic deve gravar.
 func _on_request_start_capture(duration_seconds: float) -> void:
 	if not holistic:
 		push_warning("HolisticLandmarker indisponível")
 		return
 
-	# Configura a duração antes de iniciar (propriedade @export do holistic).
 	if duration_seconds > 0.0:
 		holistic.capture_duration_seconds = duration_seconds
-		# O timer interno do holistic já existe (criado no _ready dele) e
-		# usa wait_time = capture_duration_seconds. Precisamos atualizar o
-		# wait_time também porque o Timer não relê o @export automaticamente.
 		if holistic.capture_timer != null:
 			holistic.capture_timer.wait_time = duration_seconds
 
@@ -164,14 +219,11 @@ func _on_request_start_capture(duration_seconds: float) -> void:
 		push_warning("HolisticLandmarker._begin_capture() indisponível")
 
 
-## RecordingState foi cancelado — descarta o que estava sendo gravado.
 func _on_request_reset_capture() -> void:
 	if holistic and holistic.has_method("_reset"):
 		holistic._reset()
 
 
-## HolisticLandmarker emitiu landmarks_detected após os 10s.
-## `export_data` é o {video_info, frames} produzido por _export_capture_json.
 func _on_capture_complete(export_data: Dictionary) -> void:
 	if recording.visible:
 		recording.on_capture_complete(export_data)
@@ -220,7 +272,6 @@ func _on_next_lesson() -> void:
 
 
 func _on_back() -> void:
-	# Se estiver gravando, cancela a captura antes de sair.
 	if recording.visible and holistic and holistic.has_method("_reset"):
 		holistic._reset()
 	Global.go_to_map()
