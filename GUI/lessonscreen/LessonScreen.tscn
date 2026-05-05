@@ -8,7 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://busbb8aswp80w" path="res://GUI/feedback/FeedbackState.tscn" id="6_feedback"]
 [ext_resource type="PackedScene" uid="uid://bfuukuyqtqblt" path="res://assets/models/Libra/Libra.tscn" id="7_avatar"]
 [ext_resource type="PackedScene" uid="uid://dt08jfr74fxgr" path="res://GUI/vision/holistic_landmarker/HolisticLandmarker.tscn" id="8_holistic"]
-[ext_resource type="PackedScene" path="res://GUI/cameraselector/CameraSelectorDialog.tscn" id="9_camera_dialog"]
+[ext_resource type="PackedScene" uid="uid://bspsiyxtbjgyg" path="res://GUI/cameraselector/CameraSelectorDialog.tscn" id="9_camera_dialog"]
 
 [node name="LessonScreen" type="Control" unique_id=677948547]
 layout_mode = 3
@@ -89,7 +89,6 @@ grow_horizontal = 1
 grow_vertical = 1
 
 [node name="CameraSelectorDialog" parent="." unique_id=1673841510 instance=ExtResource("9_camera_dialog")]
-oversampling_override = 1.0
 
 [node name="Back" type="Button" parent="." unique_id=1767193946]
 unique_name_in_owner = true

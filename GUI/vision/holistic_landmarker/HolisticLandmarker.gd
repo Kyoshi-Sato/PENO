@@ -20,6 +20,27 @@ signal landmarks_detected
 ## Emitido quando a câmera ativa muda (após start_camera_with_feed).
 signal camera_changed(feed_name: String)
 
+# ─────────────────────────────────────────────
+#  CONTROLE DE RENDER DO OVERLAY (performance)
+# ─────────────────────────────────────────────
+
+## Quando true, o renderer do overlay roda. Quando false, o pipeline
+## ainda detecta landmarks (e captura no _collect_frame) mas pula o
+## render visual — economiza CPU quando não há preview na tela.
+var render_overlay_enabled: bool = true
+
+## Intervalo mínimo entre renders consecutivos do overlay, em ms.
+## Mesmo com render_overlay_enabled=true, frames vindo mais rápido que
+## isso são pulados. Default = ~33ms (~30fps cap).
+var render_overlay_min_interval_ms: int = 33
+
+## Tolerância máxima entre timestamps dos packets de entrada do renderer.
+## Frames com divergência maior são descartados sem chamar render()
+## (previne o erro "inconsistent timestamps" do AnnotationOverlayCalculator).
+var render_timestamp_tolerance_us: int = 5000  # 5ms
+
+var _last_render_at_ms: int = 0
+
 func _ready() -> void:
 	super()
 	capture_timer = Timer.new()
@@ -252,23 +273,40 @@ func _process_camera(image: MediaPipeImage, timestamp_ms: int) -> void:
 	task_runner.send({"image_in": packet})
 
 func show_result(outputs: Dictionary) -> void:
+	# Coleta de frames pra captura é independente do render visual.
 	if capture_active:
 		_collect_frame(outputs)
 
-	var packets := {}
+	# A partir daqui é só render do overlay — pode ser pulado.
+	if not render_overlay_enabled:
+		return
 
-	if outputs.has("image_out"):
-		var packet: MediaPipePacket = outputs["image_out"]
-		var image := packet.get() as MediaPipeImage
-		packets["input_image"] = image.get_image_frame_packet()
-		packets["input_image"].timestamp = packet.timestamp
+	# Throttling temporal: respeita um intervalo mínimo entre renders.
+	var now_ms: int = Time.get_ticks_msec()
+	if (now_ms - _last_render_at_ms) < render_overlay_min_interval_ms:
+		return
+
+	if not outputs.has("image_out"):
+		return
+
+	var image_packet: MediaPipePacket = outputs["image_out"]
+	var image_ts: int = image_packet.timestamp
+
+	# Verifica que todos os landmarks usam o mesmo timestamp (dentro da
+	# tolerância). Se algum divergir, pula o frame em vez de chamar render
+	# (que falharia com "inconsistent timestamps").
+	if not _timestamps_compatible(outputs, image_ts):
+		return
+
+	var packets := {}
+	var image := image_packet.get() as MediaPipeImage
+	packets["input_image"] = image.get_image_frame_packet()
+	packets["input_image"].timestamp = image_ts
 
 	if outputs.has("pose_landmarks"):
 		packets["pose_landmarks"] = outputs["pose_landmarks"]
-
 	if outputs.has("left_hand_landmarks"):
 		packets["left_hand_landmarks"] = outputs["left_hand_landmarks"]
-
 	if outputs.has("right_hand_landmarks"):
 		packets["right_hand_landmarks"] = outputs["right_hand_landmarks"]
 
@@ -276,7 +314,23 @@ func show_result(outputs: Dictionary) -> void:
 	if output_image == null:
 		return
 
+	_last_render_at_ms = now_ms
 	update_image(output_image.image)
+
+
+## Verifica se todos os packets relevantes têm timestamp dentro da
+## tolerância em relação ao image_ts. Retorna false se algum divergir.
+func _timestamps_compatible(outputs: Dictionary, image_ts: int) -> bool:
+	var keys := ["pose_landmarks", "left_hand_landmarks", "right_hand_landmarks"]
+	for k in keys:
+		if not outputs.has(k):
+			continue
+		var p: MediaPipePacket = outputs[k]
+		if p == null:
+			continue
+		if absi(p.timestamp - image_ts) > render_timestamp_tolerance_us:
+			return false
+	return true
 
 func _collect_frame(outputs: Dictionary) -> void:
 	var timestamp_ms := Time.get_ticks_msec() - capture_started_at_ms

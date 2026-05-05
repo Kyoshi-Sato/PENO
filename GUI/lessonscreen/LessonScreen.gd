@@ -59,6 +59,9 @@ func _ready() -> void:
 			holistic.connect("landmarks_detected", _on_capture_complete)
 		if holistic.has_signal("camera_changed"):
 			holistic.connect("camera_changed", _on_camera_changed)
+		# Começa desligado — só liga quando entrar no RecordingState.
+		if "render_overlay_enabled" in holistic:
+			holistic.render_overlay_enabled = false
 
 	# Esconde os states até carregar a lição.
 	sign_showcase.visible = false
@@ -156,6 +159,11 @@ func _show_only(state_node: Control) -> void:
 	sign_showcase.visible = state_node == sign_showcase
 	recording.visible = state_node == recording
 	feedback.visible = state_node == feedback
+
+	# Render do overlay do holistic é caro — só ligamos quando o
+	# RecordingState está visível (ele é quem mostra o preview).
+	if holistic and "render_overlay_enabled" in holistic:
+		holistic.render_overlay_enabled = (state_node == recording)
 
 
 func _on_enter_showcase() -> void:
