@@ -12,7 +12,7 @@ extends Node
 const PROGRESS_PATH := "user://progress.json"
 const MODEL_DIR := "user://GDMP"
 
-const MAIN_SCENE := "res://GUI/Screens/Main.tscn"
+const MAIN_SCENE := "res://GUI/Screens/Main/Main.tscn"
 const LESSON_SCENE := "res://GUI/lessonscreen/LessonScreen.tscn"
 const MAP_SCENE := "res://GUI/lessonmap/LessonMapScreen.tscn"
 

@@ -1,0 +1,349 @@
+[gd_scene format=3 uid="uid://c5lpjegcml0ma"]
+
+[ext_resource type="Theme" uid="uid://bwvd7d8yfgkr1" path="res://themes/libras_soft.tres" id="1_theme"]
+[ext_resource type="Script" uid="uid://c8u82td85krxv" path="res://GUI/Screens/Main/Main.gd" id="2_script"]
+[ext_resource type="PackedScene" uid="uid://bfuukuyqtqblt" path="res://assets/models/Libra/Libra.tscn" id="4_avatar"]
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_avatar"]
+viewport_path = NodePath("SubViewport")
+
+[sub_resource type="StyleBoxFlat" id="card_purple"]
+content_margin_left = 24.0
+content_margin_top = 24.0
+content_margin_right = 24.0
+content_margin_bottom = 24.0
+bg_color = Color(0.45, 0.4, 0.85, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[sub_resource type="StyleBoxFlat" id="card_white"]
+content_margin_left = 24.0
+content_margin_top = 24.0
+content_margin_right = 24.0
+content_margin_bottom = 24.0
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+shadow_color = Color(0, 0, 0, 0.04)
+shadow_size = 8
+
+[node name="Main" type="Control" unique_id=2082257217]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_theme")
+script = ExtResource("2_script")
+
+[node name="Background" type="ColorRect" parent="." unique_id=521739111]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.97, 0.97, 0.99, 1)
+
+[node name="SubViewport" type="SubViewport" parent="." unique_id=172666419]
+transparent_bg = true
+size = Vector2i(400, 600)
+render_target_update_mode = 4
+
+[node name="Avatar" parent="SubViewport" unique_id=1876385151 instance=ExtResource("4_avatar")]
+
+[node name="Camera3D" type="Camera3D" parent="SubViewport" unique_id=1667026032]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 1.4)
+projection = 1
+fov = 45.0
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SubViewport" unique_id=218659715]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 4, 0)
+light_energy = 1.2
+
+[node name="RootMargin" type="MarginContainer" parent="." unique_id=403280251]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 0
+
+[node name="VBox" type="VBoxContainer" parent="RootMargin" unique_id=53866025]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="MainHBox" type="HBoxContainer" parent="RootMargin/VBox" unique_id=634136941]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 24
+
+[node name="Sidebar" type="VBoxContainer" parent="RootMargin/VBox/MainHBox" unique_id=1864749414]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="UserHeader" type="HBoxContainer" parent="RootMargin/VBox/MainHBox/Sidebar" unique_id=1985641226]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="AvatarThumb" type="TextureRect" parent="RootMargin/VBox/MainHBox/Sidebar/UserHeader" unique_id=616364616]
+custom_minimum_size = Vector2(72, 72)
+layout_mode = 2
+texture = SubResource("ViewportTexture_avatar")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="UserInfo" type="VBoxContainer" parent="RootMargin/VBox/MainHBox/Sidebar/UserHeader" unique_id=1897742318]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="UserNameLabel" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/UserHeader/UserInfo" unique_id=1515657019]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Usuário"
+
+[node name="UserLevelLabel" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/UserHeader/UserInfo" unique_id=102640922]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Nível 1"
+
+[node name="CardDestaque" type="PanelContainer" parent="RootMargin/VBox/MainHBox/Sidebar" unique_id=1718105493]
+custom_minimum_size = Vector2(0, 360)
+layout_mode = 2
+theme_override_styles/panel = SubResource("card_purple")
+
+[node name="VBox" type="VBoxContainer" parent="RootMargin/VBox/MainHBox/Sidebar/CardDestaque" unique_id=1393845009]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardDestaque/VBox" unique_id=962306346]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "Continue
+aprendendo!"
+
+[node name="Subtitle" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardDestaque/VBox" unique_id=1853628944]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.85)
+theme_override_font_sizes/font_size = 16
+text = "Você está indo muito bem."
+
+[node name="AvatarBig" type="TextureRect" parent="RootMargin/VBox/MainHBox/Sidebar/CardDestaque/VBox" unique_id=1377403717]
+layout_mode = 2
+size_flags_vertical = 3
+texture = SubResource("ViewportTexture_avatar")
+stretch_mode = 5
+
+[node name="CardProgresso" type="PanelContainer" parent="RootMargin/VBox/MainHBox/Sidebar" unique_id=1056708895]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("card_white")
+
+[node name="VBox" type="VBoxContainer" parent="RootMargin/VBox/MainHBox/Sidebar/CardProgresso" unique_id=1935525071]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HeaderRow" type="HBoxContainer" parent="RootMargin/VBox/MainHBox/Sidebar/CardProgresso/VBox" unique_id=2105873886]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardProgresso/VBox/HeaderRow" unique_id=864724747]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Sua evolução"
+
+[node name="EvolucaoPct" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardProgresso/VBox/HeaderRow" unique_id=1951018689]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.4, 0.85, 1)
+theme_override_font_sizes/font_size = 22
+text = "0%"
+
+[node name="EvolucaoBar" type="ProgressBar" parent="RootMargin/VBox/MainHBox/Sidebar/CardProgresso/VBox" unique_id=62257359]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 1.0
+show_percentage = false
+
+[node name="EvolucaoText" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardProgresso/VBox" unique_id=1102432265]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "0 / 0 lições concluídas"
+horizontal_alignment = 1
+
+[node name="CardEstatisticas" type="PanelContainer" parent="RootMargin/VBox/MainHBox/Sidebar" unique_id=1028062533]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("card_white")
+
+[node name="VBox" type="VBoxContainer" parent="RootMargin/VBox/MainHBox/Sidebar/CardEstatisticas" unique_id=1968380796]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardEstatisticas/VBox" unique_id=853933558]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Estatísticas"
+
+[node name="Placeholder" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardEstatisticas/VBox" unique_id=1063070487]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "TODO: sinais aprendidos, precisão, tempo de prática"
+
+[node name="CardRecompensa" type="PanelContainer" parent="RootMargin/VBox/MainHBox/Sidebar" unique_id=868528179]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("card_white")
+
+[node name="VBox" type="VBoxContainer" parent="RootMargin/VBox/MainHBox/Sidebar/CardRecompensa" unique_id=100291670]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardRecompensa/VBox" unique_id=1788714683]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Próxima recompensa"
+
+[node name="Placeholder" type="Label" parent="RootMargin/VBox/MainHBox/Sidebar/CardRecompensa/VBox" unique_id=1461500160]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "TODO: sistema de XP/recompensas"
+
+[node name="MainArea" type="VBoxContainer" parent="RootMargin/VBox/MainHBox" unique_id=1185899538]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="TopBar" type="HBoxContainer" parent="RootMargin/VBox/MainHBox/MainArea" unique_id=87396083]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="ModuloInfo" type="VBoxContainer" parent="RootMargin/VBox/MainHBox/MainArea/TopBar" unique_id=1090009632]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ModuloLabel" type="Label" parent="RootMargin/VBox/MainHBox/MainArea/TopBar/ModuloInfo" unique_id=1123475809]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Mapa de aprendizado"
+
+[node name="ModuloSubtitle" type="Label" parent="RootMargin/VBox/MainHBox/MainArea/TopBar/ModuloInfo" unique_id=1944012496]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.55, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="StreakIndicator" type="HBoxContainer" parent="RootMargin/VBox/MainHBox/MainArea/TopBar" unique_id=1642079737]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="RootMargin/VBox/MainHBox/MainArea/TopBar/StreakIndicator" unique_id=2077227846]
+layout_mode = 2
+text = "🔥 0 dias"
+
+[node name="XPIndicator" type="HBoxContainer" parent="RootMargin/VBox/MainHBox/MainArea/TopBar" unique_id=577761595]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="RootMargin/VBox/MainHBox/MainArea/TopBar/XPIndicator" unique_id=2018248585]
+layout_mode = 2
+text = "⭐ 0 XP"
+
+[node name="VerModulosButton" type="Button" parent="RootMargin/VBox/MainHBox/MainArea/TopBar" unique_id=1430020910]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Ver módulos"
+
+[node name="SettingsButton" type="Button" parent="RootMargin/VBox/MainHBox/MainArea/TopBar" unique_id=513910830]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "⚙"
+flat = true
+
+[node name="MapPanel" type="PanelContainer" parent="RootMargin/VBox/MainHBox/MainArea" unique_id=1245972240]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("card_white")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="RootMargin/VBox/MainHBox/MainArea/MapPanel" unique_id=1043525525]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="PathContainer" type="VBoxContainer" parent="RootMargin/VBox/MainHBox/MainArea/MapPanel/ScrollContainer" unique_id=1401772785]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 24
+
+[node name="BottomNav" type="HBoxContainer" parent="RootMargin/VBox" unique_id=937163138]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+theme_override_constants/separation = 32
+alignment = 1
+
+[node name="NavHome" type="Button" parent="RootMargin/VBox/BottomNav" unique_id=1098347424]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Início"
+flat = true
+
+[node name="NavLessons" type="Button" parent="RootMargin/VBox/BottomNav" unique_id=1426621148]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Lições"
+flat = true
+
+[node name="NavPractice" type="Button" parent="RootMargin/VBox/BottomNav" unique_id=1785100081]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "📷  Praticar"
+
+[node name="NavProgress" type="Button" parent="RootMargin/VBox/BottomNav" unique_id=632302595]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Progresso"
+flat = true
+
+[node name="NavProfile" type="Button" parent="RootMargin/VBox/BottomNav" unique_id=1096510004]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Perfil"
+flat = true

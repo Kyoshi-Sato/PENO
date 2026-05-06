@@ -282,4 +282,4 @@ func _on_next_lesson() -> void:
 func _on_back() -> void:
 	if recording.visible and holistic and holistic.has_method("_reset"):
 		holistic._reset()
-	Global.go_to_map()
+	Global.go_to_main_scene()

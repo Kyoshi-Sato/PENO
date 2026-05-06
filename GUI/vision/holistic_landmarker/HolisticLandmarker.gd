@@ -322,7 +322,7 @@ func show_result(outputs: Dictionary) -> void:
 ## tolerância em relação ao image_ts. Retorna false se algum divergir.
 func _timestamps_compatible(outputs: Dictionary, image_ts: int) -> bool:
 	var keys := ["pose_landmarks", "left_hand_landmarks", "right_hand_landmarks"]
-	for k in keys:
+	for k: Variant in keys:
 		if not outputs.has(k):
 			continue
 		var p: MediaPipePacket = outputs[k]
