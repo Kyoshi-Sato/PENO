@@ -1,27 +1,172 @@
-name: "godot-export"
+name: CI - Lint & Export Android
+
 on:
   push:
-    tags:
-      - 'v*' # Vai rodar sempre que você criar uma tag tipo v1.0, v1.1...
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  export_game:
+  # ─────────────────────────────────────────────
+  # JOB 1: Lint GDScript com gdtoolkit
+  # ─────────────────────────────────────────────
+  lint:
+    name: 🔍 GDScript Lint
     runs-on: ubuntu-latest
-    name: Export Game
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: export game
-        uses: firebelley/godot-export@v5.2.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
         with:
-          # O Link da versão HEADLESS do Godot (Linux)
-          godot_executable_download_url: https://downloads.godotengine.org/?version=4.6.2&flavor=stable&slug=linux.x86_64.zip&platform=linux.64
-          # O Link dos templates de exportação (.tpz)
-          godot_export_templates_download_url: https://godot-releases.nbg1.your-objectstorage.com/4.6.2-stable/Godot_v4.6.2-stable_export_templates.tpz
-          relative_project_path: ./ # Onde está o seu project.godot
-          archive_output: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.EXPORT_GITHUB_TOKEN }}
+          python-version: "3.12"
+
+      - name: Instalar gdtoolkit (Godot 4)
+        run: pip install "gdtoolkit==4.*"
+
+      - name: Rodar gdlint
+        run: |
+          echo "=== Arquivos GDScript encontrados ==="
+          find . -name "*.gd" -not -path "*/addons/*" | sort
+          echo ""
+          echo "=== Resultado do lint ==="
+          find . -name "*.gd" -not -path "*/addons/*" \
+            | xargs gdlint
+
+      - name: Verificar formatação (gdformat --check)
+        run: |
+          find . -name "*.gd" -not -path "*/addons/*" \
+            | xargs gdformat --check
+        continue-on-error: true  # mude para false para bloquear PRs
+
+  # ─────────────────────────────────────────────
+  # JOB 2: Build APK Android
+  # ─────────────────────────────────────────────
+  export-android:
+    name: 📱 Export Android APK
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Java (necessário para o Android SDK e build do APK) ──
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      # ── .NET (o projeto tem C#) ──
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # ── Android SDK ──
+      - name: Instalar Android SDK e ferramentas
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar build-tools e plataforma Android
+        run: |
+          sdkmanager "platform-tools" \
+                     "build-tools;34.0.0" \
+                     "platforms;android-34" \
+                     "cmdline-tools;latest"
+
+      # ── Keystore de debug (gerado automaticamente) ──
+      - name: Gerar keystore de debug
+        run: |
+          keytool -genkey -v \
+            -keystore debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      # ── Godot 4.6 headless ──
+      - name: Baixar Godot 4.6 (headless)
+        run: |
+          wget -q \
+            "https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_linux.x86_64.zip" \
+            -O godot.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.6-stable_linux.x86_64
+          sudo mv Godot_v4.6-stable_linux.x86_64 /usr/local/bin/godot
+
+      # ── Templates de exportação (inclui Android) ──
+      - name: Baixar templates de exportação
+        run: |
+          wget -q \
+            "https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_export_templates.tpz" \
+            -O templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/4.6.stable
+          unzip -q templates.tpz -d /tmp/templates
+          mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/4.6.stable/
+
+      # ── Configurar o Godot para encontrar o Android SDK e o keystore ──
+      - name: Configurar paths do Godot (editor_settings)
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.tres << EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$GITHUB_WORKSPACE/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      # ── Importar assets (primeiro boot do Godot) ──
+      - name: Importar projeto
+        run: godot --headless --import --quit || true
+        timeout-minutes: 5
+
+      # ── Exportar APK ──
+      - name: Criar pasta de saída
+        run: mkdir -p builds/android
+
+      - name: Exportar APK (debug)
+        run: |
+          godot --headless --export-debug "Android" builds/android/PENO.apk
+        timeout-minutes: 20
+
+      # ── Upload do artefato ──
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PENO-android-${{ github.sha }}
+          path: builds/android/PENO.apk
+          retention-days: 30
+
+  # ─────────────────────────────────────────────
+  # JOB 3: Release automática (só em tags v*)
+  # ─────────────────────────────────────────────
+  release:
+    name: 🚀 GitHub Release
+    runs-on: ubuntu-latest
+    needs: export-android
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Baixar APK do build
+        uses: actions/download-artifact@v4
+        with:
+          name: PENO-android-${{ github.sha }}
+          path: builds/android/
+
+      - name: Criar Release com APK
+        uses: softprops/action-gh-release@v2
+        with:
+          files: builds/android/PENO.apk
+          generate_release_notes: true
