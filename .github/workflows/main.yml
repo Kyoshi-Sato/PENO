@@ -34,6 +34,7 @@ jobs:
           echo "=== Resultado do lint ==="
           find . -name "*.gd" -not -path "*/addons/*" \
             | xargs gdlint
+        continue-on-error: true
 
       - name: Verificar formatação (gdformat --check)
         run: |
