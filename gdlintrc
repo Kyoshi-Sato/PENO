@@ -1,0 +1,11 @@
+max-line-length: 150
+max-file-lines: 2000
+max-public-methods: 40
+max-returns: 10
+disabled:
+  - class-variable-name
+  - class-definitions-order
+  - unused-argument
+  - no-else-return
+  - no-elif-return
+  - trailing-whitespace
