@@ -18,8 +18,8 @@ config/name="Librarefa"
 run/main_scene="uid://c5lpjegcml0ma"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 boot_splash/bg_color=Color(0, 0, 0, 1)
-boot_splash/image="uid://f0jfr0db5b16"
-config/icon="uid://f0jfr0db5b16"
+boot_splash/image="uid://1vfq7xoidkvu"
+config/icon="uid://1vfq7xoidkvu"
 
 [audio]
 
@@ -50,7 +50,7 @@ project/assembly_name="Librarefa"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/CameraServerExtension/plugin.cfg", "res://addons/GDMP/plugin.cfg", "res://addons/gut/plugin.cfg")
+enabled=PackedStringArray("res://addons/CameraServerExtension/plugin.cfg", "res://addons/GDMP/plugin.cfg")
 
 [file_customization]
 
@@ -60,7 +60,6 @@ folder_colors={
 "res://Scripts/": "purple",
 "res://addons/": "red",
 "res://assets/": "green",
-"res://assets/audio/": "blue",
 "res://data/": "gray"
 }
 
