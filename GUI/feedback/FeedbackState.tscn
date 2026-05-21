@@ -52,6 +52,9 @@ theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 24
 
+[node name="Panel" type="Panel" parent="Scroll/Margin" unique_id=283391415]
+layout_mode = 2
+
 [node name="VBox" type="VBoxContainer" parent="Scroll/Margin" unique_id=117060768]
 layout_mode = 2
 theme_override_constants/separation = 20
@@ -59,14 +62,15 @@ theme_override_constants/separation = 20
 [node name="TitleLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1885615315]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 72
 text = "Parabéns!"
 horizontal_alignment = 1
 
 [node name="SubtitleLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=86450696]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 72
 text = "Muito bom!
 Você concluiu a lição"
 horizontal_alignment = 1
@@ -78,7 +82,7 @@ alignment = 1
 [node name="SignPill" type="Label" parent="Scroll/Margin/VBox/PillContainer" unique_id=967650120]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 72
 theme_override_styles/normal = SubResource("sign_pill")
 text = "Bom dia"
 
@@ -90,7 +94,7 @@ alignment = 1
 
 [node name="Star1" type="Label" parent="Scroll/Margin/VBox/Stars" unique_id=2102711205]
 layout_mode = 2
-theme_override_font_sizes/font_size = 56
+theme_override_font_sizes/font_size = 72
 text = "★"
 
 [node name="Star2" type="Label" parent="Scroll/Margin/VBox/Stars" unique_id=759231226]
@@ -100,19 +104,19 @@ text = "★"
 
 [node name="Star3" type="Label" parent="Scroll/Margin/VBox/Stars" unique_id=573211793]
 layout_mode = 2
-theme_override_font_sizes/font_size = 56
+theme_override_font_sizes/font_size = 72
 text = "★"
 
 [node name="XPLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1829077860]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 48
 text = "+ 40 XP"
 horizontal_alignment = 1
 
 [node name="DesempenhoLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1863321090]
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 72
 text = "Seu desempenho"
 horizontal_alignment = 1
 
@@ -121,6 +125,7 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="PrecisionCard" type="PanelContainer" parent="Scroll/Margin/VBox/MetricsRow" unique_id=469020199]
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("metric_card")
@@ -131,14 +136,14 @@ alignment = 1
 
 [node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard/VBox" unique_id=1250943957]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 48
 text = "Precisão"
 horizontal_alignment = 1
 
 [node name="PrecisionValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/PrecisionCard/VBox" unique_id=2060312266]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 48
 text = "82%"
 horizontal_alignment = 1
 
@@ -153,14 +158,14 @@ alignment = 1
 
 [node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard/VBox" unique_id=2144755265]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 48
 text = "Tentativas"
 horizontal_alignment = 1
 
 [node name="AttemptsValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/AttemptsCard/VBox" unique_id=933873668]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 48
 text = "1"
 horizontal_alignment = 1
 
@@ -175,24 +180,26 @@ alignment = 1
 
 [node name="Label" type="Label" parent="Scroll/Margin/VBox/MetricsRow/TimeCard/VBox" unique_id=46122600]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 48
 text = "Tempo"
 horizontal_alignment = 1
 
 [node name="TimeValue" type="Label" parent="Scroll/Margin/VBox/MetricsRow/TimeCard/VBox" unique_id=1540429885]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 48
 text = "00:18"
 horizontal_alignment = 1
 
 [node name="ContinueLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1026496109]
+visible = false
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "Continue assim!"
 horizontal_alignment = 1
 
 [node name="EncourageLabel" type="Label" parent="Scroll/Margin/VBox" unique_id=1405714095]
+visible = false
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "Você está mandando muito bem."
@@ -208,13 +215,13 @@ layout_mode = 2
 [node name="Label" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer/HeaderRow" unique_id=1914458323]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 64
 text = "Progresso do módulo"
 
 [node name="ModuleNameLabel" type="Label" parent="Scroll/Margin/VBox/ModuleProgressContainer" unique_id=1064756339]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 64
 text = "Cumprimentos"
 
 [node name="ModuleProgress" type="ProgressBar" parent="Scroll/Margin/VBox/ModuleProgressContainer" unique_id=370041936]
@@ -237,12 +244,12 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 theme_type_variation = &"PrimaryButton"
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 72
 text = "Próxima lição"
 
 [node name="SeeModulesButton" type="Button" parent="Scroll/Margin/VBox" unique_id=131586330]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "Ver módulos"
+theme_override_font_sizes/font_size = 72
+text = "Tentar Novamente"
 flat = true

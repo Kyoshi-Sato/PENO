@@ -7,7 +7,6 @@
 [ext_resource type="Texture2D" uid="uid://dth5sq6m7wjqk" path="res://assets/models/Libra/LibraTextures/Libra2__01.png" id="9_k5o0m"]
 [ext_resource type="Texture2D" uid="uid://c302a8rjxnn7p" path="res://assets/models/Libra/LibraTextures/Libra2__02.png" id="10_8sbim"]
 [ext_resource type="Texture2D" uid="uid://d2581rnggamw6" path="res://assets/models/Libra/LibraTextures/Libra2__03.png" id="11_ojmjt"]
-[ext_resource type="Texture2D" uid="uid://cfncf4v5v0hms" path="res://Sem título.png" id="14_bhwmm"]
 [ext_resource type="Texture2D" uid="uid://d36hx0gxoqqsj" path="res://assets/models/Libra/LibraTextures/Libra2__06.png" id="14_bom6l"]
 [ext_resource type="Texture2D" uid="uid://cxjo2g0lqpn4y" path="res://assets/models/Libra/LibraTextures/Libra2__07.png" id="15_4tpyg"]
 [ext_resource type="Texture2D" uid="uid://cnpqp8yqbvx3r" path="res://assets/models/Libra/LibraTextures/Libra2__09.png" id="16_a4ars"]
@@ -928,12 +927,28 @@ _data = {
 &"Idle": SubResource("Animation_yem8c")
 }
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s1wfx"]
+[sub_resource type="Gradient" id="Gradient_ipa65"]
+colors = PackedColorArray(0.9999997, 0.5862566, 0.22393507, 1, 0.54450524, 0.28027576, 0.14943331, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ipa65"]
+noise_type = 2
+frequency = 0.0532
+fractal_octaves = 1
+cellular_jitter = 180.0
+cellular_return_type = 0
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_yem8c"]
+width = 2048
+height = 2048
+noise = SubResource("FastNoiseLite_ipa65")
+color_ramp = SubResource("Gradient_ipa65")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bhwmm"]
 shading_mode = 0
-albedo_texture = ExtResource("14_bhwmm")
+albedo_texture = SubResource("NoiseTexture2D_yem8c")
 
 [sub_resource type="QuadMesh" id="QuadMesh_qrfwa"]
-material = SubResource("StandardMaterial3D_s1wfx")
+material = SubResource("StandardMaterial3D_bhwmm")
 size = Vector2(3, 3)
 
 [node name="Libra" type="Node3D" unique_id=277880837]
@@ -977,7 +992,7 @@ bones/4/parent = 3
 bones/4/rest = Transform3D(1, -1.5031144e-07, 3.4361568e-07, 2.6795865e-07, 0.92736703, -0.37415272, -2.6241847e-07, 0.37415272, 0.927367, -9.259764e-17, 0.1128748, 0)
 bones/4/enabled = true
 bones/4/position = Vector3(-9.259764e-17, 0.1128748, 0)
-bones/4/rotation = Quaternion(0.19056877, 1.5433695e-07, 1.06519614e-07, 0.98167384)
+bones/4/rotation = Quaternion(0.19056877, 1.5433699e-07, 1.0651963e-07, 0.98167384)
 bones/4/scale = Vector3(1, 1, 1)
 bones/5/name = "BnCabeca"
 bones/5/parent = 4

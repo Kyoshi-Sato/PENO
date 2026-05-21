@@ -874,7 +874,10 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 		var key: String = "_palm_%s" % side.to_lower()
 		results[key] = palm_sim
 
-		var palm_sim_pct: float = float(palm_sim.get("similarity_pct", NAN))
+		var palm_sim_pct: float = _to_float_or_nan(
+		palm_sim.get("similarity_pct", NAN)
+		)
+
 		if not is_nan(palm_sim_pct) and results.has(label):
 			var palm_weight: float = 3.5
 			var dir_weight: float  = 4.0
@@ -929,6 +932,12 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 	results["_global_similarity_pct"] = (g_sum / g_total) if g_total > 0.0 else 0.0
 	return results
 
+func _to_float_or_nan(value: Variant) -> float:
+	if value is float or value is int:
+		return value
+	if value is String:
+		return value.to_float()
+	return NAN
 
 ## Extrai vetores de direção da mão por frame (pulso → ponta dedo médio).
 func _extract_hand_directions(frames: Array, side: String) -> Array[Vector3]:

@@ -2,18 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://f0jfr0db5b16"
-path.s3tc="res://.godot/imported/Untitled.png-30da513a925d9064453decddf41ecbd4.s3tc.ctex"
-path.etc2="res://.godot/imported/Untitled.png-30da513a925d9064453decddf41ecbd4.etc2.ctex"
+uid="uid://cmjlgp74lj0fa"
+path.s3tc="res://.godot/imported/Libra2__04.png-a689529339a95fbe317789cbce09b808.s3tc.ctex"
+path.etc2="res://.godot/imported/Libra2__04.png-a689529339a95fbe317789cbce09b808.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "8cfd25480b20d4d98a1a6183f5186ad4"
+}
 
 [deps]
 
-source_file="res://Untitled.png"
-dest_files=["res://.godot/imported/Untitled.png-30da513a925d9064453decddf41ecbd4.s3tc.ctex", "res://.godot/imported/Untitled.png-30da513a925d9064453decddf41ecbd4.etc2.ctex"]
+source_file="res://assets/models/Libra/Libra2__04.png"
+dest_files=["res://.godot/imported/Libra2__04.png-a689529339a95fbe317789cbce09b808.s3tc.ctex", "res://.godot/imported/Libra2__04.png-a689529339a95fbe317789cbce09b808.etc2.ctex"]
 
 [params]
 
