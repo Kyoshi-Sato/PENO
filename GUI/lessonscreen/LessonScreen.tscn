@@ -89,6 +89,7 @@ grow_horizontal = 1
 grow_vertical = 1
 
 [node name="CameraSelectorDialog" parent="." unique_id=1673841510 instance=ExtResource("9_camera_dialog")]
+visible = false
 
 [node name="Back" type="Button" parent="." unique_id=1767193946]
 unique_name_in_owner = true
