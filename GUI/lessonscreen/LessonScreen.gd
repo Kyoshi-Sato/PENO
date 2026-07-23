@@ -9,11 +9,16 @@ extends Control
 
 const LIBRARY_NAME := &"licao"
 const CAPTURE_MARGIN_SECONDS := 1.0
+const ANDROID_CAMERA_PERMISSION := "android.permission.CAMERA"
 
-@export var debug_lesson_id: int = 1
+## Use um id >= 0 apenas para forçar uma lição específica em testes no editor.
+## Em builds normais deve ficar -1 para respeitar a lição escolhida no mapa.
+@export var debug_lesson_id: int = -1
 
 var lesson: Lesson
 var current_sign_index: int = 0
+## Melhor número de estrelas obtido em cada sinal da lição (índice = sinal).
+var _sign_stars: Array[int] = []
 
 @onready var state_machine: Node = $LessonStateMachine
 @onready var sign_showcase: Control = $States/SignShowcaseState
@@ -53,6 +58,8 @@ func _ready() -> void:
 
 	feedback.retry_requested.connect(_on_retry)
 	feedback.next_lesson_requested.connect(_on_next_lesson)
+	feedback.modules_requested.connect(_on_see_modules)
+	feedback.evaluation_completed.connect(_on_evaluation_completed)
 
 	if holistic:
 		if holistic.has_signal("landmarks_detected"):
@@ -71,6 +78,10 @@ func _ready() -> void:
 	# Pré-seleciona a melhor câmera disponível. Em web/mobile pode levar
 	# alguns frames pro CameraServer popular feeds — então fazemos call_deferred.
 	call_deferred("_auto_select_best_camera")
+	# No Android os feeds registram assincronamente DEPOIS que o monitoramento
+	# liga — a tentativa única acima roda cedo demais no dispositivo (verificado
+	# via logcat: câmeras enumeradas, nenhuma selecionada). Retry por evento:
+	CameraServer.camera_feed_added.connect(_on_camera_feed_added)
 
 	var lesson_id := debug_lesson_id
 	if lesson_id < 0:
@@ -85,6 +96,8 @@ func _ready() -> void:
 func _on_lesson_loaded(loaded: Lesson) -> void:
 	lesson = loaded
 	current_sign_index = 0
+	_sign_stars.clear()
+	_sign_stars.resize(lesson.sinais.size())
 
 	if animation_player.has_animation_library(LIBRARY_NAME):
 		animation_player.remove_animation_library(LIBRARY_NAME)
@@ -100,8 +113,21 @@ func _on_lesson_failed(error: String) -> void:
 
 # ---------- CÂMERA ----------
 
+## Um feed novo registrou no CameraServer. Se ainda estamos sem câmera,
+## refaz a auto-seleção (a escolha manual do usuário nunca é sobrescrita
+## porque com câmera ativa este handler não faz nada).
+func _on_camera_feed_added(_id: int) -> void:
+	if holistic == null or holistic.camera_feed != null:
+		return
+	call_deferred("_auto_select_best_camera")
+
+
 func _auto_select_best_camera() -> void:
 	if holistic == null or not holistic.has_method("pick_best_camera_id"):
+		return
+	if holistic.camera_feed != null:
+		return   # já há câmera selecionada — evita restart em eventos em rajada
+	if not _ensure_camera_permission():
 		return
 	var best_id: int = holistic.pick_best_camera_id()
 	if best_id < 0:
@@ -109,6 +135,31 @@ func _auto_select_best_camera() -> void:
 		return
 	if not holistic.start_camera_with_feed(best_id):
 		push_warning("Falha ao iniciar a câmera id=%d" % best_id)
+
+
+## Em Android a permissão de câmera precisa ser concedida em runtime.
+## Retorna true se a câmera já pode ser usada. Caso contrário dispara o
+## pedido de permissão e a auto-seleção é refeita em _on_permissions_result.
+func _ensure_camera_permission() -> bool:
+	if OS.get_name() != "Android":
+		return true
+	if ANDROID_CAMERA_PERMISSION in OS.get_granted_permissions():
+		return true
+	if not get_tree().on_request_permissions_result.is_connected(_on_permissions_result):
+		get_tree().on_request_permissions_result.connect(_on_permissions_result)
+	OS.request_permission("CAMERA")
+	return false
+
+
+func _on_permissions_result(permission: String, granted: bool) -> void:
+	if permission != ANDROID_CAMERA_PERMISSION:
+		return
+	if not granted:
+		push_warning("Permissão de câmera negada — gravação indisponível")
+		return
+	# Força o CameraServer a re-enumerar os feeds agora que temos permissão.
+	CameraServer.monitoring_feeds = false
+	call_deferred("_auto_select_best_camera")
 
 
 func _on_settings_pressed() -> void:
@@ -149,8 +200,11 @@ func _inject_camera_textures() -> void:
 		annotated = holistic.get_annotated_texture()
 	recording.bind_camera_textures(raw, annotated)
 
-	if recording.has_method("set_camera_mirrored") and holistic.has_method("is_active_camera_front"):
-		recording.set_camera_mirrored(holistic.is_active_camera_front())
+	# As duas texturas saem do SubViewport, que já aplica rotação e o
+	# espelhamento de selfie — um flip adicional aqui desfaria o espelho
+	# (era o bug do overlay que invertia o mundo ao alternar o 👁).
+	if recording.has_method("set_camera_mirrored"):
+		recording.set_camera_mirrored(false)
 
 
 # ---------- TRANSIÇÕES DE ESTADO ----------
@@ -168,11 +222,21 @@ func _show_only(state_node: Control) -> void:
 
 func _on_enter_showcase() -> void:
 	_show_only(sign_showcase)
+	# Fora da gravação a câmera (feed + readback + inferência) fica pausada:
+	# rodava o tempo todo gastando bateria com resultados descartados.
+	if holistic and holistic.has_method("pause_camera"):
+		holistic.pause_camera()
+	btn_settings.disabled = false
 	sign_showcase.setup(lesson, current_sign_index)
 
 
 func _on_enter_recording() -> void:
 	_show_only(recording)
+	if holistic and holistic.has_method("resume_camera"):
+		holistic.resume_camera()
+	# Trocar de câmera no meio de uma captura resetava o pipeline e deixava
+	# o estado preso em RECORDING pra sempre — engrenagem travada aqui.
+	btn_settings.disabled = true
 	# Garante que as texturas estão atualizadas (a anotada pode só existir
 	# depois do primeiro frame ser processado, então atualizamos toda vez).
 	_inject_camera_textures()
@@ -182,7 +246,17 @@ func _on_enter_recording() -> void:
 
 func _on_enter_feedback() -> void:
 	_show_only(feedback)
+	if holistic and holistic.has_method("pause_camera"):
+		holistic.pause_camera()
+	btn_settings.disabled = false
 	feedback.evaluate(lesson, current_sign_index, _last_payload)
+
+
+## A validação roda numa worker thread; as estrelas chegam por sinal.
+## Guarda a melhor nota deste sinal (o usuário pode tentar de novo).
+func _on_evaluation_completed(stars: int) -> void:
+	if current_sign_index >= 0 and current_sign_index < _sign_stars.size():
+		_sign_stars[current_sign_index] = maxi(_sign_stars[current_sign_index], stars)
 
 
 ## Duração da gravação = duração da animação do sinal atual + margem.
@@ -266,6 +340,11 @@ func _on_retry() -> void:
 	state_machine.go_to_sign_showcase()
 
 
+## Sai para o mapa sem marcar a lição como concluída.
+func _on_see_modules() -> void:
+	Global.go_to_map()
+
+
 func _on_next_lesson() -> void:
 	if lesson == null:
 		Global.go_to_map()
@@ -275,11 +354,24 @@ func _on_next_lesson() -> void:
 	if current_sign_index < lesson.sinais.size():
 		state_machine.go_to_sign_showcase()
 	else:
-		Global.mark_completed(lesson.lesson_id, 3)
+		Global.mark_completed(lesson.lesson_id, _lesson_stars())
 		Global.go_to_map()
 
 
+## Estrelas da lição = pior sinal (a lição vale o quanto vale o sinal
+## mais fraco). Antes era um 3 fixo que ignorava a nota calculada.
+func _lesson_stars() -> int:
+	if _sign_stars.is_empty():
+		return 0
+	var worst: int = 3
+	for s: int in _sign_stars:
+		worst = mini(worst, s)
+	return worst
+
+
 func _on_back() -> void:
-	if recording.visible and holistic and holistic.has_method("_reset"):
+	# Para captura e feed em qualquer estado — o CameraFeed vive no
+	# CameraServer e sobreviveria à troca de cena.
+	if holistic and holistic.has_method("_reset"):
 		holistic._reset()
 	Global.go_to_main_scene()

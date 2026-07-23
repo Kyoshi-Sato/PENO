@@ -62,7 +62,7 @@ func _build_row(entry: Dictionary, index: int, catalog: Array) -> Control:
 	row.add_child(spacer)
 
 	var lesson_id := int(entry.get("id", -1))
-	var nome := String(entry.get("nome_exercicio", "Lição %d" % lesson_id))
+	var nome := String(entry.get("nome", "Lição %d" % lesson_id))
 
 	var btn := Button.new()
 	btn.custom_minimum_size = NODE_SIZE

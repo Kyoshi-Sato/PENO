@@ -194,7 +194,7 @@ func _update_module_label() -> void:
 	# Heurística: pega o nome da primeira lição como "nome do módulo"
 	# se ela tiver um nome consistente. Se não, mantém genérico.
 	# TODO: trocar por um campo `modulo` quando a API expor.
-	var first_name: String = String(_catalog[0].get("nome_exercicio", ""))
+	var first_name: String = String(_catalog[0].get("nome", ""))
 	lbl_modulo.text = "Mapa de aprendizado"
 	lbl_modulo_subtitle.text = first_name if not first_name.is_empty() else ""
 
@@ -220,7 +220,7 @@ func _build_row(entry: Dictionary, index: int, catalog: Array) -> Control:
 	row.add_child(spacer)
 
 	var lesson_id := int(entry.get("id", -1))
-	var nome := String(entry.get("nome_exercicio", "Lição %d" % lesson_id))
+	var nome := String(entry.get("nome", "Lição %d" % lesson_id))
 
 	var btn := Button.new()
 	btn.custom_minimum_size = NODE_SIZE
