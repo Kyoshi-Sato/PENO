@@ -275,7 +275,7 @@ func _camera_format_changed() -> void:
 			texture_yuy2.which_feed = CameraServer.FEED_YCBCR_IMAGE
 			frame_size = texture_yuy2.get_size()
 			var mat := ShaderMaterial.new()
-			mat.shader = load("res://vision/yuy2_to_rgb.gdshader")
+			mat.shader = preload("res://GUI/vision/yuy2_to_rgb.gdshader")
 			mat.set_shader_parameter("texture_yuy2", texture_yuy2)
 			camera_texture.material = mat
 			var image := Image.create_empty(frame_size.x, frame_size.y, false, Image.FORMAT_RGB8)
@@ -290,7 +290,7 @@ func _camera_format_changed() -> void:
 			texture_y.which_feed = CameraServer.FEED_Y_IMAGE
 			texture_uv.which_feed = CameraServer.FEED_CBCR_IMAGE
 			var mat := ShaderMaterial.new()
-			mat.shader = load("res://vision/yuv420_to_rgb.gdshader")
+			mat.shader = preload("res://GUI/vision/yuv420_to_rgb.gdshader")
 			mat.set_shader_parameter("texture_y", texture_y)
 			mat.set_shader_parameter("texture_uv", texture_uv)
 			camera_texture.material = mat
@@ -308,7 +308,11 @@ func _camera_format_changed() -> void:
 	var offset := Vector2(min(size_rotated.x, 0), min(size_rotated.y, 0))
 	camera_texture.rotation = feed_rotation
 	camera_texture.position = offset * -1
-	camera_viewport.size = frame_size
+	# O viewport precisa ter o tamanho JÁ ROTACIONADO: com feed paisagem
+	# rotacionado 90° para retrato, manter frame_size deixava o conteúdo
+	# parcialmente fora da janela (preview deslocado e MediaPipe recebendo
+	# a imagem cortada com faixa vazia).
+	camera_viewport.size = Vector2i(size_rotated.abs().round())
 
 func _camera_frame_changed() -> void:
 	if camera_texture == null:
