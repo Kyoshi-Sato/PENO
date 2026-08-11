@@ -112,6 +112,10 @@ const MIN_REFERENCE_COVERAGE := 0.2
 ## Desligue apenas para isolar o efeito do filtro em testes.
 var enable_smoothing: bool = true
 
+## Reexpressa os landmarks no referencial do tronco (ver BodyFrame).
+## Desligue apenas para isolar o efeito da normalização em testes.
+var enable_body_normalization: bool = true
+
 
 # ─────────────────────────────────────────────
 #  DEFINIÇÃO DA HIERARQUIA DE OSSOS
@@ -805,6 +809,18 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 		frames_a = OneEuroFilter.filter_frames(frames_a)
 		frames_b = OneEuroFilter.filter_frames(frames_b)
 
+	# Normalização espacial pelo tronco: tira a anisotropia de formato
+	# (celular retrato vs gabarito paisagem), a distância até a câmera e a
+	# inclinação do aparelho. Só vale se OS DOIS lados puderem ser
+	# normalizados — meia normalização seria pior que nenhuma.
+	var body_normalized: bool = (
+		enable_body_normalization
+		and BodyFrame.has_usable_basis(frames_a)
+		and BodyFrame.has_usable_basis(frames_b))
+	if body_normalized:
+		frames_a = BodyFrame.normalize_frames(frames_a)
+		frames_b = BodyFrame.normalize_frames(frames_b)
+
 	var video_info_a: Dictionary = json_a.get("video_info", {}) as Dictionary
 	var video_info_b: Dictionary = json_b.get("video_info", {}) as Dictionary
 	var fps_a: float = float(video_info_a.get("fps", 30.0))
@@ -976,6 +992,7 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 			g_dict["missing_in_user"] = true
 			missing_groups.append(g_name)
 	results["_missing_groups"] = missing_groups
+	results["_body_normalized"] = body_normalized
 
 	# ── Similaridade global ponderada ──
 	var g_sum: float = 0.0

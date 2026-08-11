@@ -90,6 +90,11 @@ func test_regression_pins() -> void:
 	# re-pine conscientemente. Histórico:
 	#   Sprint 1 (dados ausentes penalizados):  99.9877 / 94.5874 / 21.5587
 	#   + One-Euro (item 13):                   99.9879 / 94.3726 / 21.5965
-	assert_almost_eq(identical, 99.9879, 0.05)
-	assert_almost_eq(cross, 94.3726, 0.05)
-	assert_almost_eq(motionless, 21.5965, 0.05)
+	#   + normalização de tronco (item 10):     99.9882 / 94.3112 / 21.5098
+	# A normalização mal move estes números porque a fábrica gera os dois
+	# lados no mesmo formato de imagem — é justamente o caso em que ela é
+	# quase identidade. O ganho aparece entre formatos diferentes, medido
+	# em test_body_frame.gd (31.3° de artefato eliminados).
+	assert_almost_eq(identical, 99.9882, 0.05)
+	assert_almost_eq(cross, 94.3112, 0.05)
+	assert_almost_eq(motionless, 21.5098, 0.05)
