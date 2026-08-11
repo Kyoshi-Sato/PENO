@@ -43,12 +43,51 @@ jobs:
         continue-on-error: true  # mude para false para bloquear PRs
 
   # ─────────────────────────────────────────────
-  # JOB 2: Build APK Android
+  # JOB 2: Testes unitários (GUT)
+  # ─────────────────────────────────────────────
+  test:
+    name: 🧪 Testes (GUT)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Baixar Godot 4.7.1 (headless)
+        run: |
+          wget -q \
+            "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip" \
+            -O godot.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.7.1-stable_linux.x86_64
+          sudo mv Godot_v4.7.1-stable_linux.x86_64 /usr/local/bin/godot
+
+      - name: Importar projeto
+        run: godot --headless --import --quit || true
+        timeout-minutes: 10
+
+      - name: Rodar testes (GUT)
+        run: |
+          godot --headless -s addons/gut/gut_cmdln.gd \
+            -gdir=res://tests -ginclude_subdirs -gprefix=test_ \
+            -gjunit_xml_file=gut_results.xml -gexit
+        timeout-minutes: 10
+
+      - name: Upload resultados dos testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gut-results-${{ github.sha }}
+          path: gut_results.xml
+          retention-days: 30
+
+  # ─────────────────────────────────────────────
+  # JOB 3: Build APK Android
   # ─────────────────────────────────────────────
   export-android:
     name: 📱 Export Android APK
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, test]
 
     steps:
       - name: Checkout
@@ -92,30 +131,30 @@ jobs:
             -dname "CN=Android Debug,O=Android,C=US"
 
       # ── Godot 4.6 headless ──
-      - name: Baixar Godot 4.6 (headless)
+      - name: Baixar Godot 4.7.1 (headless)
         run: |
           wget -q \
-            "https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_linux.x86_64.zip" \
+            "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip" \
             -O godot.zip
           unzip -q godot.zip
-          chmod +x Godot_v4.6-stable_linux.x86_64
-          sudo mv Godot_v4.6-stable_linux.x86_64 /usr/local/bin/godot
+          chmod +x Godot_v4.7.1-stable_linux.x86_64
+          sudo mv Godot_v4.7.1-stable_linux.x86_64 /usr/local/bin/godot
 
       # ── Templates de exportação (inclui Android) ──
       - name: Baixar templates de exportação
         run: |
           wget -q \
-            "https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_export_templates.tpz" \
+            "https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz" \
             -O templates.tpz
-          mkdir -p ~/.local/share/godot/export_templates/4.6.stable
+          mkdir -p ~/.local/share/godot/export_templates/4.7.1.stable
           unzip -q templates.tpz -d /tmp/templates
-          mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/4.6.stable/
+          mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/4.7.1.stable/
 
       # ── Configurar o Godot para encontrar o Android SDK e o keystore ──
       - name: Configurar paths do Godot (editor_settings)
         run: |
           mkdir -p ~/.config/godot
-          cat > ~/.config/godot/editor_settings-4.tres << EOF
+          cat > ~/.config/godot/editor_settings-4.7.tres << EOF
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
@@ -123,6 +162,14 @@ jobs:
           export/android/debug_keystore = "$GITHUB_WORKSPACE/debug.keystore"
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
+          EOF
+
+      # ── API key (secret do repositório → secrets.cfg empacotado no APK) ──
+      - name: Gerar secrets.cfg
+        run: |
+          cat > secrets.cfg << EOF
+          [api]
+          key="${{ secrets.PENO_API_KEY }}"
           EOF
 
       # ── Importar assets (primeiro boot do Godot) ──
@@ -148,7 +195,7 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # JOB 3: Release automática (só em tags v*)
+  # JOB 4: Release automática
   # ─────────────────────────────────────────────
   release:
     name: 🚀 GitHub Release

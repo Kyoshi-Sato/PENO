@@ -5,6 +5,11 @@ extends SignValidator
 
 const MotionComparatorScript := preload("res://Scripts/Comparador.gd")
 
+## Abaixo desta precisão na comparação direta, tentamos também a versão
+## espelhada da gravação (canhotos executam sinais em espelho) e ficamos
+## com a melhor nota.
+const MIRROR_RETRY_THRESHOLD := 0.7
+
 
 func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 	# Validação de entrada
@@ -29,11 +34,24 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 	var results: Dictionary = comparator.analyze_similarity(user_doc, ref_doc)
 
 	var global_pct: float = float(results.get("_global_similarity_pct", 0.0))
+	var mirrored := false
+
+	# Sinalizadores canhotos executam o sinal em espelho. Se a nota direta
+	# for baixa, comparamos também a versão espelhada e ficamos com a melhor.
+	if global_pct / 100.0 < MIRROR_RETRY_THRESHOLD:
+		var mirrored_results: Dictionary = comparator.analyze_similarity(
+			_mirror_doc(user_doc), ref_doc)
+		var mirrored_pct: float = float(mirrored_results.get("_global_similarity_pct", 0.0))
+		if mirrored_pct > global_pct:
+			results = mirrored_results
+			global_pct = mirrored_pct
+			mirrored = true
 
 	return {
 		"precision": clampf(global_pct / 100.0, 0.0, 1.0),
 		"global_similarity_pct": global_pct,
 		"details": results,
+		"mirrored": mirrored,
 		"ok": true,
 		"error": "",
 	}
@@ -66,6 +84,13 @@ func _estimate_fps(frames: Array) -> float:
 	if dur_s <= 0.0:
 		return 30.0
 	return float(frames.size() - 1) / dur_s
+
+
+## Espelha horizontalmente uma gravação (delegado ao utilitário
+## compartilhado — o mesmo usado pra canonicalizar capturas de câmera
+## frontal na exportação).
+func _mirror_doc(doc: Dictionary) -> Dictionary:
+	return CaptureMirror.mirror_doc(doc)
 
 
 func _fail(msg: String) -> Dictionary:

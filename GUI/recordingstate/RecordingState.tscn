@@ -64,7 +64,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 expand_mode = 1
-stretch_mode = 6
+stretch_mode = 5
 
 [node name="TopPill" type="HBoxContainer" parent="." unique_id=1690859038]
 layout_mode = 1

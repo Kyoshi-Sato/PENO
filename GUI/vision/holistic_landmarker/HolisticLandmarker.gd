@@ -9,6 +9,9 @@ var renderer: MediaPipeHolisticRenderer
 
 var capture_timer: Timer
 var capture_active := false
+## true somente após task_runner.initialize() — enviar frames antes disso
+## gera um erro do MediaPipe por frame de câmera.
+var _task_initialized := false
 var capture_started_at_ms := 0
 var capture_first_packet_ms := -1
 var capture_frames: Array = []
@@ -59,6 +62,37 @@ func _reset() -> void:
 
 func _start_camera() -> void:
 	super()
+
+## O CameraFeed vive no CameraServer (fora da árvore de cena): se ninguém
+## desativar, a câmera continua ligada depois desta cena morrer.
+func _exit_tree() -> void:
+	super()
+	if camera_feed != null:
+		camera_feed.feed_is_active = false
+
+
+# ─────────────────────────────────────────────
+#  PAUSA / RETOMADA DO FEED (bateria + GPU)
+# ─────────────────────────────────────────────
+
+## Pausa o feed sem desconectar os sinais — retomável com resume_camera().
+## Usado fora do estado de gravação (showcase/feedback) pra parar câmera,
+## readback de GPU e inferência que estavam rodando à toa.
+func pause_camera() -> void:
+	if camera_feed != null:
+		camera_feed.feed_is_active = false
+
+
+## Retoma o feed. Se os sinais foram desconectados por um _reset (ex.:
+## cancelamento no meio da gravação), refaz o start completo — antes disso
+## um cancel matava a câmera pro resto da sessão.
+func resume_camera() -> void:
+	if camera_feed == null:
+		return
+	if not camera_feed.frame_changed.is_connected(self._camera_frame_changed):
+		_start_camera()
+	elif not camera_feed.feed_is_active:
+		camera_feed.feed_is_active = true
 
 
 # ═══════════════════════════════════════════════════════════
@@ -164,10 +198,13 @@ func _pick_reasonable_format_index(formats: Array) -> int:
 	return formats.size() / 2
 
 
-## Textura crua da câmera (sem overlay de landmarks).
+## Textura crua da câmera (sem overlay de landmarks), já convertida
+## (shader YCbCr→RGB no Android), rotacionada e espelhada pelo viewport.
+## camera_texture.texture NÃO serve aqui: no caminho YCbCr ela é apenas
+## uma ImageTexture placeholder — a imagem real é a saída do SubViewport.
 func get_camera_texture() -> Texture2D:
-	if camera_texture != null:
-		return camera_texture.texture
+	if camera_viewport != null:
+		return camera_viewport.get_texture()
 	return null
 
 
@@ -198,6 +235,10 @@ func is_active_camera_front() -> bool:
 # ═══════════════════════════════════════════════════════════
 
 func _begin_capture(tempo: float) -> void:
+	# Garante o feed vivo: um _reset anterior (cancelamento) o desativa e
+	# desconecta os sinais; sem isso a captura gravaria 0 frames.
+	resume_camera()
+
 	capture_frames.clear()
 	capture_frame_index = 0
 	capture_first_packet_ms = -1
@@ -224,6 +265,13 @@ func _packets_callback(outputs: Dictionary) -> void:
 func _init_task() -> void:
 	var file := get_external_model(task_file)
 	if file == null:
+		# request != null significa download em andamento (fluxo legítimo:
+		# _init_task será chamado de novo no callback). Sem download, o
+		# modelo simplesmente não existe — falha alta e única.
+		if request == null:
+			push_error(
+				"HolisticLandmarker: modelo '%s' não encontrado (esperado em %s ou user://GDMP). Sem ele não há detecção." %
+				[task_file, Global.BUNDLED_MODEL_DIR])
 		return
 
 	var options := MediaPipeProto.new()
@@ -249,6 +297,7 @@ func _init_task() -> void:
 		task_runner.packets_callback.connect(self._packets_callback)
 
 	task_runner.initialize(config, async)
+	_task_initialized = true
 	renderer = MediaPipeHolisticRenderer.new()
 	super()
 
@@ -268,6 +317,8 @@ func _process_video(image: Image, timestamp_ms: int) -> void:
 	show_result(outputs)
 
 func _process_camera(image: MediaPipeImage, timestamp_ms: int) -> void:
+	if not _task_initialized:
+		return   # sem modelo/task não há o que processar (erro já reportado)
 	var packet := image.get_packet()
 	packet.timestamp = timestamp_ms * 1000
 	task_runner.send({"image_in": packet})
@@ -332,6 +383,9 @@ func _timestamps_compatible(outputs: Dictionary, image_ts: int) -> bool:
 			return false
 	return true
 
+## Roda na thread de callbacks do GDMP: extrai os dados do packet aqui
+## (timestamps precisos) mas delega o append à main thread — mutar
+## capture_frames de duas threads corrompia/derrubava a captura.
 func _collect_frame(outputs: Dictionary) -> void:
 	var timestamp_ms := Time.get_ticks_msec() - capture_started_at_ms
 
@@ -360,13 +414,20 @@ func _collect_frame(outputs: Dictionary) -> void:
 				"landmarks": pose_landmarks
 			})
 
-	capture_frames.append({
-		"frame": capture_frame_index,
+	_append_capture_frame.call_deferred({
 		"timestamp_ms": timestamp_ms,
 		"hands": hands,
 		"pose": pose
 	})
 
+
+## Main thread. Frames que chegam depois do fim/reset da captura são
+## descartados (antes eles vazavam pra dentro do export em andamento).
+func _append_capture_frame(frame_entry: Dictionary) -> void:
+	if not capture_active:
+		return
+	frame_entry["frame"] = capture_frame_index
+	capture_frames.append(frame_entry)
 	capture_frame_index += 1
 
 func _build_hand_entry(outputs: Dictionary, key: String, handedness: String) -> Dictionary:
@@ -475,15 +536,26 @@ func _export_capture_json() -> void:
 	if capture_frames.size() > 1:
 		var last_timestamp_ms: int = capture_frames[capture_frames.size() - 1]["timestamp_ms"]
 		if last_timestamp_ms > 0:
-			fps = float(capture_frames.size()) / (float(last_timestamp_ms) / 1000.0)
+			# n frames cobrem n-1 intervalos (antes superestimava o fps).
+			fps = float(capture_frames.size() - 1) / (float(last_timestamp_ms) / 1000.0)
+
+	# Câmeras frontais/webcams alimentam o MediaPipe com imagem espelhada
+	# (flip de selfie do SubViewport). Canonicaliza para a convenção dos
+	# gabaritos (não-espelhada, rótulos anatômicos) — sem isso, o sinal
+	# feito com a mão direita é comparado contra a mão errada do gabarito.
+	var mirrored_input: bool = camera_texture != null and camera_texture.flip_h
+	var frames_out: Array = capture_frames
+	if mirrored_input:
+		frames_out = CaptureMirror.mirror_frames(capture_frames)
 
 	var export_data := {
 		"video_info": {
 			"source": source_name,
-			"total_frames": capture_frames.size(),
-			"fps": fps
+			"total_frames": frames_out.size(),
+			"fps": fps,
+			"canonicalized_from_mirrored": mirrored_input,
 		},
-		"frames": capture_frames
+		"frames": frames_out
 	}
 
 	# Garante que o diretório existe (user:// é writable em build exportada)

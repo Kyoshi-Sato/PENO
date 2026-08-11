@@ -32,8 +32,12 @@ signal catalog_loaded(catalog: Array)
 signal catalog_failed(error: String)
 
 @export var base_url: String = "https://api.ciclicainteractive.com"
-@export var api_key: String = "chave_secreta_godot"
 @export var cache_dir: String = "user://anim_cache/"
+
+## Carregada em _ready a partir de PENO_API_KEY (env) ou res://secrets.cfg
+## (gitignored — veja secrets.cfg.example). Nunca commitar a chave no código:
+## ela é extraível do APK e do histórico do git.
+var api_key: String = ""
 
 # lesson_id -> { req, on_loaded, on_failed }
 var _pending_lessons: Dictionary = {}
@@ -46,6 +50,27 @@ const DEBUG_CATALOG: Array[Dictionary] = [
 	{ "id": 1, "nome": "Debug" },
 	{ "id": 2, "nome": "Debug2" },
 ]
+
+
+func _ready() -> void:
+	api_key = _load_api_key()
+
+
+func _load_api_key() -> String:
+	var env := OS.get_environment("PENO_API_KEY")
+	if not env.is_empty():
+		return env
+	var cfg := ConfigFile.new()
+	if cfg.load("res://secrets.cfg") == OK:
+		var key := String(cfg.get_value("api", "key", ""))
+		if not key.is_empty():
+			return key
+	push_warning(
+		"LessonService: nenhuma API key configurada (PENO_API_KEY ou " +
+		"res://secrets.cfg). Requisições à API vão falhar.")
+	return ""
+
+
 # ---------- LIÇÃO INDIVIDUAL ----------
 
 func fetch_lesson(lesson_id: int, on_loaded: Callable = Callable(), on_failed: Callable = Callable()) -> void:
@@ -168,7 +193,30 @@ func _build_lesson(lesson_id: int, payload: Dictionary) -> Lesson:
 	return lesson
 
 
+## O ResourceLoader EXECUTA código ao carregar um .tres que embuta um
+## GDScript (o _init de um sub_resource script roda no load) — ou seja,
+## uma API comprometida viraria execução arbitrária de código no celular
+## do aluno. Uma Animation legítima é 100% inline: sem ext_resource, sem
+## sub_resource, sem atribuição de script. Qualquer coisa além disso é
+## rejeitada antes de chegar ao loader.
+func _is_safe_animation_tres(tres_text: String) -> bool:
+	if not tres_text.strip_edges().begins_with("[gd_resource type=\"Animation\""):
+		return false
+	if tres_text.contains("[ext_resource") or tres_text.contains("[sub_resource"):
+		return false
+	var script_prop := RegEx.create_from_string("(?m)^\\s*script\\s*=")
+	if script_prop.search(tres_text) != null:
+		return false
+	return true
+
+
 func _load_animation_from_tres_text(tres_text: String, unique_id: String) -> Animation:
+	if not _is_safe_animation_tres(tres_text):
+		push_error(
+			"Animação '%s' rejeitada: o .tres da API contém construções " % unique_id +
+			"não permitidas (ext_resource/sub_resource/script).")
+		return null
+
 	var path := cache_dir.path_join("anim_%s.tres" % unique_id)
 
 	var f := FileAccess.open(path, FileAccess.WRITE)
@@ -238,20 +286,28 @@ func _on_catalog_response(_result: int, code: int, _headers: PackedStringArray, 
 	if not parsed is Array:
 		_emit_catalog_fail("Resposta do catálogo não é um array", on_failed)
 		return
-	# Normaliza: aceita tanto [{id, nome}] quanto [int].
-	var catalog: Array = []
-	for entry: Variant in parsed:
-		if entry is Dictionary:
-			catalog.append({
-				"id_exercicio": int(entry.get("id_exercicio", 0)),
-				"nome_exercicio": String(entry.get("nome_exercicio", "")),
-			})
-		elif entry is int or entry is float:
-			catalog.append({ "id_exercicio": int(entry), "nome_exercicio": "Lição %d" % int(entry) })
-	
+
+	var catalog: Array = _normalize_catalog(parsed)
+
 	catalog_loaded.emit(catalog)
 	if on_loaded.is_valid():
 		on_loaded.call(catalog)
+
+
+## Normaliza: aceita [{id, nome}], [{id_exercicio, nome_exercicio}] (formato
+## real da API) ou [int]. Saída canônica: [{ "id": int, "nome": String }].
+func _normalize_catalog(parsed: Array) -> Array:
+	var catalog: Array = []
+	for entry: Variant in parsed:
+		if entry is Dictionary:
+			var id := int(entry.get("id", entry.get("id_exercicio", -1)))
+			var nome := String(entry.get("nome", entry.get("nome_exercicio", "")))
+			if nome.is_empty():
+				nome = "Lição %d" % id
+			catalog.append({ "id": id, "nome": nome })
+		elif entry is int or entry is float:
+			catalog.append({ "id": int(entry), "nome": "Lição %d" % int(entry) })
+	return catalog
 
 
 # ---------- HELPERS ----------

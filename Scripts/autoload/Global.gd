@@ -11,6 +11,8 @@ extends Node
 
 const PROGRESS_PATH := "user://progress.json"
 const MODEL_DIR := "user://GDMP"
+## Modelos MediaPipe embarcados no projeto (e no APK via include_filter).
+const BUNDLED_MODEL_DIR := "res://assets/mediapipe"
 
 const MAIN_SCENE := "res://GUI/Screens/Main/Main.tscn"
 const LESSON_SCENE := "res://GUI/lessonscreen/LessonScreen.tscn"
@@ -109,6 +111,12 @@ func get_external_model(path: String, callback: Callable) -> HTTPRequest:
 
 
 func get_model(path: String) -> FileAccess:
+	# Modelo embarcado tem prioridade: funciona offline e no APK sem
+	# depender de download em runtime (enable_download_files é false).
+	var bundled := BUNDLED_MODEL_DIR.path_join(path.get_file())
+	if FileAccess.file_exists(bundled):
+		return FileAccess.open(bundled, FileAccess.READ)
+
 	var model_path := MODEL_DIR.path_join(path)
 
 	if FileAccess.file_exists(model_path):
@@ -149,9 +157,11 @@ func is_unlocked(lesson_id: int, catalog: Array) -> bool:
 
 
 func mark_completed(lesson_id: int, stars: int = 3) -> void:
+	# Não rebaixa um resultado anterior melhor ao rejogar a lição.
+	var best := maxi(get_stars(lesson_id), clampi(stars, 0, 3))
 	_progress[str(lesson_id)] = {
 		"completed": true,
-		"stars": clampi(stars, 0, 3),
+		"stars": best,
 	}
 
 	_save_progress()

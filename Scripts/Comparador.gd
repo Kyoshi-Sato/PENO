@@ -104,6 +104,10 @@ const GROUP_WEIGHTS: Dictionary = {
 	"Mão Direita":  1.0,
 }
 
+## Cobertura mínima de detecção para considerar que a referência "exige"
+## um grupo (fração de frames do gabarito em que o grupo foi detectado).
+const MIN_REFERENCE_COVERAGE := 0.2
+
 
 # ─────────────────────────────────────────────
 #  DEFINIÇÃO DA HIERARQUIA DE OSSOS
@@ -168,8 +172,19 @@ func load_json(path: String) -> Dictionary:
 
 
 ## Retorna as coordenadas [x, y, z] de um landmark pelo ID.
-## Retorna Vector3.ZERO e sets found=false se não encontrar.
+## Retorna Vector3(INF, INF, INF) (sentinela) se não encontrar.
 func get_landmark(landmarks: Array, idx: int) -> Vector3:
+	# Caminho rápido: o exportador grava landmarks com id == posição no
+	# array, então a indexação direta resolve sem varredura.
+	if idx >= 0 and idx < landmarks.size():
+		var direct: Dictionary = landmarks[idx] as Dictionary
+		if int(direct.get("id", -1)) == idx:
+			return Vector3(
+				float(direct.get("x", 0.0)),
+				float(direct.get("y", 0.0)),
+				float(direct.get("z", 0.0))
+			)
+	# Fallback: varredura (dados externos podem vir fora de ordem).
 	for lm: Variant in landmarks:
 		var lm_dict: Dictionary = lm as Dictionary
 		if lm_dict.get("id", -1) == idx:
@@ -710,6 +725,13 @@ func analyze_gesture_phases(
 		var max_segs: int = maxi(segs_a.size(), segs_b.size())
 		var coverage: float = float(n_pairs) / float(max_segs) if max_segs > 0 else 1.0
 		phase_sim = base_score * coverage
+	elif segs_a.is_empty() and not segs_b.is_empty() \
+			and _detection_coverage(frames_b, source) >= MIN_REFERENCE_COVERAGE:
+		# A referência (B) tem movimento e o usuário (A) não se moveu:
+		# fase = 0. Antes ficava NAN e era silenciosamente ignorada na
+		# nota, então ficar parado não custava nada. O gate de cobertura
+		# evita zerar grupos que a referência não exige (detecção espúria).
+		phase_sim = 0.0
 
 	# Serializar segmentos para Dictionary
 	var segs_a_dict: Array[Dictionary] = []
@@ -752,8 +774,20 @@ func _extract_bone_x_segment(
 #  ANÁLISE PRINCIPAL
 # ─────────────────────────────────────────────
 
+## Fração de frames em que a fonte ("pose"/"hand_left"/"hand_right")
+## tem landmarks detectados.
+func _detection_coverage(frames: Array, source: String) -> float:
+	if frames.is_empty():
+		return 0.0
+	var detected: int = 0
+	for frame: Variant in frames:
+		if not _get_landmarks_from_frame(frame as Dictionary, source).is_empty():
+			detected += 1
+	return float(detected) / float(frames.size())
+
+
 ## Realiza toda a análise de similaridade entre dois vídeos.
-## json_a / json_b: Dictionaries já carregados (use load_json).
+## json_a: execução do usuário; json_b: referência (gabarito).
 ## Retorna Dictionary com resultados por grupo de ossos + "_global_similarity_pct".
 func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 	var frames_a: Array = json_a.get("frames", []) as Array
@@ -797,20 +831,6 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 			var raw_a: Array = series_a[bone.name] as Array
 			var raw_b: Array = series_b[bone.name] as Array
 
-			# Série X normalizada para DTW global
-			var x_a_raw: PackedFloat64Array = PackedFloat64Array()
-			var x_b_raw: PackedFloat64Array = PackedFloat64Array()
-			for v: Variant in raw_a:
-				var vec: Vector3 = v as Vector3
-				x_a_raw.append(vec.x if _is_valid_vec(vec) else NAN)
-			for v: Variant in raw_b:
-				var vec: Vector3 = v as Vector3
-				x_b_raw.append(vec.x if _is_valid_vec(vec) else NAN)
-
-			var sa: PackedFloat64Array = normalize_sequence(x_a_raw)
-			var sb: PackedFloat64Array = normalize_sequence(x_b_raw)
-			var dtw_dist: float = compute_dtw_distance(sa, sb)
-
 			# Ângulo médio ponderado
 			var angle_diffs: PackedFloat64Array = series_to_angle_diff(raw_a, raw_b)
 			var mean_angle_diff: float = weighted_mean_angle(angle_diffs, frame_weights)
@@ -820,11 +840,8 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 
 			bone_results[bone.name] = {
 				"mean_angle_diff_deg": mean_angle_diff,
-				"dtw_distance": dtw_dist,
 				"similarity_pct": similarity_pct,
 				"weight": BONE_WEIGHTS.get(bone.name, 1.0),
-				"angle_series_a": _packed_to_array(sa),
-				"angle_series_b": _packed_to_array(sb),
 			}
 
 		# Similaridade média ponderada do grupo
@@ -910,12 +927,43 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 				new_w_sum   += dir_sim * dir_weight
 				new_w_total += dir_weight
 
+			# Reinclui o termo de fase, que o blend anterior já tinha
+			# incorporado — este recálculo o descartava, apagando inclusive
+			# a penalidade de fase 0 do usuário imóvel.
+			var group_phase: Dictionary = group_dict.get("phase", {}) as Dictionary
+			var group_phase_sim: float = float(group_phase.get("phase_similarity_pct", NAN))
+			if not is_nan(group_phase_sim):
+				var phase_weight: float = 1.5
+				new_w_sum   += group_phase_sim * phase_weight
+				new_w_total += phase_weight
+
 			group_dict["group_similarity_pct"] = new_w_sum / new_w_total
 			group_dict["palm_orientation"] = palm_sim
 			group_dict["hand_direction"] = {
 				"mean_angle_diff_deg": mean_dir_diff,
 				"similarity_pct": dir_sim,
 			}
+
+	# ── Grupos ausentes na execução do usuário ──
+	# Grupo exigido pela referência mas nunca detectado no usuário entra
+	# como 0% (antes era excluído da média — um usuário parado com as mãos
+	# fora do quadro herdava a nota da postura de repouso do gabarito).
+	var missing_groups: Array[String] = []
+	for group_info: Dictionary in groups:
+		var g_name: String = group_info["name"] as String
+		var g_source: String = group_info["source"] as String
+		var g_dict: Dictionary = results[g_name] as Dictionary
+		if _detection_coverage(frames_b, g_source) < MIN_REFERENCE_COVERAGE:
+			# A referência não exige o grupo — segue fora da média se NAN.
+			continue
+		if is_nan(float(g_dict.get("group_similarity_pct", NAN))):
+			g_dict["group_similarity_pct"] = 0.0
+		# O flag é por detecção, não pela nota: a fase pode já ter zerado
+		# o grupo, mas "nunca visto no usuário" continua valendo o aviso.
+		if _detection_coverage(frames_a, g_source) <= 0.0:
+			g_dict["missing_in_user"] = true
+			missing_groups.append(g_name)
+	results["_missing_groups"] = missing_groups
 
 	# ── Similaridade global ponderada ──
 	var g_sum: float = 0.0
@@ -1064,10 +1112,9 @@ func print_summary(results: Dictionary, label_a: String, label_b: String) -> voi
 			var bd: Dictionary = bones_dict[bone_name] as Dictionary
 			var sim: float  = float(bd.get("similarity_pct", NAN))
 			var diff: float = float(bd.get("mean_angle_diff_deg", NAN))
-			var dtw_d: float = float(bd.get("dtw_distance", NAN))
 			if not is_nan(sim):
 				var status: String = "✓" if sim >= 70.0 else ("~" if sim >= 40.0 else "✗")
-				print("    %s %-20s sim=%5.1f%%  ΔAngulo=%5.1f°  DTW=%.3f" % [status, bone_name, sim, diff, dtw_d])
+				print("    %s %-20s sim=%5.1f%%  ΔAngulo=%5.1f°" % [status, bone_name, sim, diff])
 
 		# Orientação da palma
 		if group_data.has("palm_orientation"):
