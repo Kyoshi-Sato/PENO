@@ -86,8 +86,10 @@ func test_regression_pins() -> void:
 	gut.p("PIN cross      = %.4f" % cross)
 	gut.p("PIN motionless = %.4f" % motionless)
 
-	# Valores observados na captura desta suíte (Godot 4.7, comparador pós-
-	# correções do Sprint 1). Mudou? Justifique e re-pine conscientemente.
-	assert_almost_eq(identical, 99.9877, 0.05)
-	assert_almost_eq(cross, 94.5874, 0.05)
-	assert_almost_eq(motionless, 21.5587, 0.05)
+	# Valores observados na captura desta suíte. Mudou? Justifique e
+	# re-pine conscientemente. Histórico:
+	#   Sprint 1 (dados ausentes penalizados):  99.9877 / 94.5874 / 21.5587
+	#   + One-Euro (item 13):                   99.9879 / 94.3726 / 21.5965
+	assert_almost_eq(identical, 99.9879, 0.05)
+	assert_almost_eq(cross, 94.3726, 0.05)
+	assert_almost_eq(motionless, 21.5965, 0.05)

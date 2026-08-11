@@ -108,6 +108,10 @@ const GROUP_WEIGHTS: Dictionary = {
 ## um grupo (fração de frames do gabarito em que o grupo foi detectado).
 const MIN_REFERENCE_COVERAGE := 0.2
 
+## Suavização temporal dos landmarks antes de qualquer medida.
+## Desligue apenas para isolar o efeito do filtro em testes.
+var enable_smoothing: bool = true
+
 
 # ─────────────────────────────────────────────
 #  DEFINIÇÃO DA HIERARQUIA DE OSSOS
@@ -792,6 +796,14 @@ func _detection_coverage(frames: Array, source: String) -> float:
 func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 	var frames_a: Array = json_a.get("frames", []) as Array
 	var frames_b: Array = json_b.get("frames", []) as Array
+
+	# Suavização One-Euro (duas passadas, sem atraso) nos DOIS lados —
+	# aplicar só de um lado introduziria viés. Estabiliza principalmente a
+	# normal da palma, que é um produto vetorial de pontos vizinhos e
+	# amplifica o tremor do MediaPipe.
+	if enable_smoothing:
+		frames_a = OneEuroFilter.filter_frames(frames_a)
+		frames_b = OneEuroFilter.filter_frames(frames_b)
 
 	var video_info_a: Dictionary = json_a.get("video_info", {}) as Dictionary
 	var video_info_b: Dictionary = json_b.get("video_info", {}) as Dictionary
