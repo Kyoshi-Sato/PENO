@@ -536,15 +536,26 @@ func _export_capture_json() -> void:
 	if capture_frames.size() > 1:
 		var last_timestamp_ms: int = capture_frames[capture_frames.size() - 1]["timestamp_ms"]
 		if last_timestamp_ms > 0:
-			fps = float(capture_frames.size()) / (float(last_timestamp_ms) / 1000.0)
+			# n frames cobrem n-1 intervalos (antes superestimava o fps).
+			fps = float(capture_frames.size() - 1) / (float(last_timestamp_ms) / 1000.0)
+
+	# Câmeras frontais/webcams alimentam o MediaPipe com imagem espelhada
+	# (flip de selfie do SubViewport). Canonicaliza para a convenção dos
+	# gabaritos (não-espelhada, rótulos anatômicos) — sem isso, o sinal
+	# feito com a mão direita é comparado contra a mão errada do gabarito.
+	var mirrored_input: bool = camera_texture != null and camera_texture.flip_h
+	var frames_out: Array = capture_frames
+	if mirrored_input:
+		frames_out = CaptureMirror.mirror_frames(capture_frames)
 
 	var export_data := {
 		"video_info": {
 			"source": source_name,
-			"total_frames": capture_frames.size(),
-			"fps": fps
+			"total_frames": frames_out.size(),
+			"fps": fps,
+			"canonicalized_from_mirrored": mirrored_input,
 		},
-		"frames": capture_frames
+		"frames": frames_out
 	}
 
 	# Garante que o diretório existe (user:// é writable em build exportada)
