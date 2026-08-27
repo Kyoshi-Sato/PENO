@@ -237,4 +237,42 @@ Esforço: P = pequeno (≤ ½ dia), M = médio (½–2 dias), G = grande (> 2 di
 
 ---
 
-*Fase 5 (implementação) inicia somente após aprovação deste relatório, incremental e com explicação antes de cada mudança, conforme combinado.*
+---
+
+# Fase 5 — Execução (registro de implementação)
+
+## Sprint 1 — destravar o produto
+
+Itens 1–4, 12 e 18 (parcial). Permissão de câmera no Android (preset + runtime); catálogo normalizado para `{id, nome}` e `debug_lesson_id = -1` (a seleção de lição passou a funcionar); estrelas reais persistidas (melhor por sinal, mínimo na lição, sem rebaixar resultado anterior); **dados ausentes penalizados** (grupo exigido pelo gabarito e não executado vale 0%, com flag `_missing_groups`; usuário sem movimento recebe fase 0); suporte a canhotos por comparação espelhada; botões e textos do feedback corrigidos.
+
+## Sprint 2 — blindar antes de mexer no núcleo
+
+Suíte GUT com pins de regressão **criada antes** de qualquer mudança no algoritmo, para que toda alteração numérica ficasse visível no diff. Depois: remoção do DTW morto e indexação O(1) dos landmarks (−62% no custo por validação, sem mudar um único número — provado pelos pins); validação movida para `WorkerThreadPool` (fim do congelamento de 2–8 s); ciclo de vida da câmera (pausa fora da gravação, cancelamento não mata mais o feed, race de thread eliminada); chave de API fora do código e validador anti-RCE do `.tres` remoto.
+
+## Sprint 3 — o método da tese
+
+Ordem de implementação seguindo o fluxo dos dados: filtragem → normalização → alinhamento → agregação.
+
+| Item | O que mudou | Resultado medido |
+|---|---|---|
+| 13 — filtragem | Filtro **One-Euro de fase zero** (duas passadas) nos dois lados | Ruído −56% (gabarito) e −83% (celular); trajetória 33%/10% **mais fiel** que o sinal cru. Atraso de fase eliminado: centroide temporal cru 15,000 → causal 15,810 → duas passadas 15,028 |
+| 10 — normalização | Base afim do **tronco** (origem no meio dos quadris, eixos ombros/tronco) | Cancela algebricamente o formato da imagem. O mesmo osso a 45° media −60,6° em paisagem e −29,4° em retrato: **31,3° de erro puro** eliminados. Em dados reais, similaridade de pose 60,23% → 65,38% |
+| 7 — alinhamento | **DTW multivariado** com banda de Sakoe-Chiba (15%) e backtracking do caminho ótimo, sobre todos os ossos do grupo | Em gabarito real: execução 0,5 s atrasada **83,14% → 99,98%** (+16,84); captura em taxa menor **69,38% → 93,89%** (+24,51); usuário parado permanece em 21,77% |
+| 15 — movimento | Percurso total no lugar do emparelhamento de segmentos por índice | Independente da taxa: 15 fps vs 30 fps → 94,9%; metade do percurso → 48,3% |
+| 14 — cobertura | Fator **contínuo** de cobertura de detecção + validação de formato do gabarito | Cobertura 0,20 contra gabarito 1,00 → fator 0,667. Gabarito sem pose passa a falhar alto em vez de silenciar a avaliação da localização do sinal |
+
+**Efeito prático sobre as estrelas.** Com os limiares atuais (0,9/0,7/0,5), uma execução correta porém atrasada saía com 2 estrelas e agora sai com 3; uma gravada em fps menor saía com 1 estrela e agora sai com 3. O falso positivo do usuário imóvel continua barrado (21,8% = 0 estrela).
+
+**Custo.** Pipeline completo, no desktop: 142 ms para 2,5 s de captura, 380 ms para 5 s, 717 ms para 10 s (o DTW domina e cresce quadraticamente). Roda em worker thread desde o Sprint 2, então não bloqueia a interface.
+
+**Reprodutibilidade.** `enable_smoothing`, `enable_body_normalization` e `enable_dtw_alignment` permitem reproduzir cada ablação da tabela. `tools/medir_real.gd` e `tools/medir_custo.gd` reproduzem as medições sobre dados reais; `tests/fixtures/ref_abacaxi.json` é um gabarito real da API commitado como fixture. A suíte tem 112 testes.
+
+**Limpeza.** Removidas as funções superadas pelo novo alinhamento (`series_to_angle_diff`, `compute_dtw_distance`, `segment_similarity_dtw`, `normalize_sequence`, `weighted_mean_angle` e dependências): manter duas implementações de DTW lado a lado reproduziria a ambiguidade que tornava o código original enganoso. Os pins não se moveram, confirmando que o código removido era inalcançável.
+
+## O que continua pendente
+
+1. **Verificação empírica do contrato de espelhamento (item 6).** A canonicalização está implementada e é algebricamente correta, mas a confirmação exige uma captura do usuário **executando o sinal do gabarito**. O teste com uma captura qualquer (pessoa parada) mede só assimetria de postura e não decide nada — `tools/medir_real.gd` roda o experimento assim que essa gravação existir.
+2. **Item 16 — calibração por sinal (dataset K×M×N, limiares por percentil, EER).** É o capítulo de avaliação da tese e depende de coleta.
+3. **Item 18 — feedback em tempo real.** `frame_instant_similarity` continua sem chamadores: ou é ligado ao anel de precisão/checklist, ou os dois são removidos. É decisão de produto.
+4. **`visibility`/`presence`** seguem capturados e não consumidos.
+5. Rotacionar a chave da API (a antiga está no histórico do git) e criar o secret `PENO_API_KEY` no GitHub.
