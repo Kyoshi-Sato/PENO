@@ -120,6 +120,74 @@ func test_left_handed_signer_recovered_by_mirror_retry() -> void:
 	assert_gt(float(result["precision"]), 0.9, "espelho do gabarito = execução perfeita")
 
 
+# ---------- validação do formato do gabarito ----------
+
+func test_valid_reference_passes_schema() -> void:
+	var doc := CaptureDocFactory.make_doc(10, 30.0, true, true)
+	assert_eq(v.validate_reference_schema(doc), "", "gabarito bem formado passa")
+
+
+func test_reference_without_pose_is_rejected() -> void:
+	# Caso real: uma ferramenta offline que só rode o hand_landmarker
+	# produziria isto, e a LOCALIZAÇÃO do sinal deixaria de ser avaliada
+	# sem ninguém perceber.
+	var doc := CaptureDocFactory.make_doc(10, 30.0, true, true)
+	for frame: Variant in doc["frames"] as Array:
+		(frame as Dictionary)["pose"] = []
+
+	var error := v.validate_reference_schema(doc)
+	assert_true(error.contains("pose"), "erro deve citar a pose ausente: '%s'" % error)
+
+
+func test_reference_with_truncated_pose_is_rejected() -> void:
+	var doc := CaptureDocFactory.make_doc(10, 30.0, true, true)
+	var first: Dictionary = (doc["frames"] as Array)[0]
+	var pose: Dictionary = (first["pose"] as Array)[0]
+	pose["landmarks"] = (pose["landmarks"] as Array).slice(0, 10)
+
+	assert_true(v.validate_reference_schema(doc).contains("10 landmarks"))
+
+
+func test_reference_with_bad_handedness_is_rejected() -> void:
+	var doc := CaptureDocFactory.make_doc(10, 30.0, true, true)
+	var first: Dictionary = (doc["frames"] as Array)[0]
+	((first["hands"] as Array)[0] as Dictionary)["handedness"] = "Unknown"
+
+	assert_true(v.validate_reference_schema(doc).contains("handedness"))
+
+
+func test_reference_with_truncated_hand_is_rejected() -> void:
+	var doc := CaptureDocFactory.make_doc(10, 30.0, true, true)
+	var first: Dictionary = (doc["frames"] as Array)[0]
+	var hand: Dictionary = (first["hands"] as Array)[0]
+	hand["landmarks"] = (hand["landmarks"] as Array).slice(0, 5)
+
+	assert_true(v.validate_reference_schema(doc).contains("5 landmarks"))
+
+
+func test_validate_fails_loudly_on_bad_reference() -> void:
+	# O ponto do item 14: gabarito inválido tem que virar erro visível,
+	# não uma nota confiantemente errada.
+	var user := CaptureDocFactory.make_doc(20, 30.0, true, true)
+	var broken := CaptureDocFactory.make_doc(20, 30.0, true, true)
+	for frame: Variant in broken["frames"] as Array:
+		(frame as Dictionary)["pose"] = []
+
+	var result: Dictionary = v.validate(user, broken)
+	assert_false(bool(result["ok"]))
+	assert_eq(float(result["precision"]), 0.0)
+	assert_true(String(result["error"]).contains("Gabarito inválido"))
+
+
+func test_zero_fps_is_recomputed_from_timestamps() -> void:
+	# fps=0 passava direto e degenerava os pesos de repouso.
+	var doc := CaptureDocFactory.make_doc(13, 12.0, true, true)
+	(doc["video_info"] as Dictionary)["fps"] = 0.0
+
+	var shaped: Dictionary = v._ensure_doc_shape(doc)
+	assert_almost_eq(float((shaped["video_info"] as Dictionary)["fps"]), 12.0, 0.5)
+
+
 func _find_lm(lms: Array, id: int) -> Dictionary:
 	for lm: Variant in lms:
 		if int((lm as Dictionary).get("id", -1)) == id:

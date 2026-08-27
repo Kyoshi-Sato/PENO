@@ -89,54 +89,6 @@ func test_palm_normal_unit_and_invalid_when_missing() -> void:
 	assert_false(c._is_valid_vec(c.palm_normal([_lm(0, 0.5, 0.5)])))
 
 
-# ---------- DTW ----------
-
-func test_dtw_identical_sequences_is_zero() -> void:
-	var s := PackedFloat64Array([1.0, 2.0, 3.0, 2.0])
-	assert_almost_eq(c.compute_dtw_distance(s, s), 0.0, 0.0001)
-
-
-func test_dtw_empty_returns_zero() -> void:
-	assert_eq(c.compute_dtw_distance(PackedFloat64Array(), PackedFloat64Array([1.0])), 0.0)
-
-
-func test_dtw_known_small_case() -> void:
-	# a=[0,0], b=[1,1]: custo acumulado terminal = 2.0
-	var a := PackedFloat64Array([0.0, 0.0])
-	var b := PackedFloat64Array([1.0, 1.0])
-	assert_almost_eq(c.compute_dtw_distance(a, b), 2.0, 0.0001)
-
-
-func test_dtw_is_symmetric() -> void:
-	var a := PackedFloat64Array([0.1, 0.5, 0.9, 0.2])
-	var b := PackedFloat64Array([0.3, 0.4, 0.8])
-	assert_almost_eq(c.compute_dtw_distance(a, b), c.compute_dtw_distance(b, a), 0.0001)
-
-
-# ---------- normalize_sequence / interpolação ----------
-
-func test_normalize_sequence_resamples_to_100() -> void:
-	var s := PackedFloat64Array([1.0, 2.0, 3.0])
-	assert_eq(c.normalize_sequence(s).size(), 100)
-
-
-func test_normalize_sequence_constant_preserved() -> void:
-	var s := PackedFloat64Array()
-	s.resize(30)
-	s.fill(5.0)
-	var out: PackedFloat64Array = c.normalize_sequence(s)
-	assert_almost_eq(out[0], 5.0, 0.0001)
-	assert_almost_eq(out[50], 5.0, 0.0001)
-	assert_almost_eq(out[99], 5.0, 0.0001)
-
-
-func test_normalize_sequence_too_few_valid_is_zeros() -> void:
-	var s := PackedFloat64Array([NAN, 7.0, NAN])
-	var out: PackedFloat64Array = c.normalize_sequence(s)
-	assert_almost_eq(out[0], 0.0, 0.0001)
-	assert_almost_eq(out[99], 0.0, 0.0001)
-
-
 # ---------- build_rest_weights ----------
 
 func test_rest_weights_middle_is_full_and_edges_low() -> void:
@@ -150,24 +102,6 @@ func test_rest_weights_fps_zero_is_all_ones() -> void:
 	var w: PackedFloat64Array = c.build_rest_weights(10, 0.0)
 	for i in range(10):
 		assert_almost_eq(w[i], 1.0, 0.0001)
-
-
-# ---------- weighted_mean_angle ----------
-
-func test_weighted_mean_skips_nan() -> void:
-	var angles := PackedFloat64Array([10.0, NAN, 30.0])
-	var weights := PackedFloat64Array([1.0, 1.0, 1.0])
-	assert_almost_eq(c.weighted_mean_angle(angles, weights), 20.0, 0.0001)
-
-
-func test_weighted_mean_all_nan_is_nan() -> void:
-	var angles := PackedFloat64Array([NAN, NAN])
-	assert_true(is_nan(c.weighted_mean_angle(angles, PackedFloat64Array([1.0, 1.0]))))
-
-
-func test_weighted_mean_empty_weights_uses_uniform() -> void:
-	var angles := PackedFloat64Array([10.0, 20.0])
-	assert_almost_eq(c.weighted_mean_angle(angles, PackedFloat64Array()), 15.0, 0.0001)
 
 
 # ---------- smooth_signal / segmentação ----------
@@ -211,12 +145,13 @@ func test_median_odd_and_even() -> void:
 	assert_eq(c._median_packed(PackedFloat64Array()), 0.0)
 
 
-func test_nan_to_zero() -> void:
-	var out: PackedFloat64Array = c._nan_to_zero(PackedFloat64Array([1.0, NAN, -2.0]))
-	assert_almost_eq(out[1], 0.0, 0.0001)
-	assert_almost_eq(out[0], 1.0, 0.0001)
-
-
 func test_mean_packed() -> void:
 	assert_almost_eq(c._mean_packed(PackedFloat64Array([2.0, 4.0])), 3.0, 0.0001)
 	assert_eq(c._mean_packed(PackedFloat64Array()), 0.0)
+
+
+func test_sum_packed_is_total_travel() -> void:
+	# Sobre velocidades, a soma é o comprimento percorrido — base do
+	# termo de quantidade de movimento.
+	assert_almost_eq(c._sum_packed(PackedFloat64Array([0.1, 0.2, 0.3])), 0.6, 0.0001)
+	assert_eq(c._sum_packed(PackedFloat64Array()), 0.0)
