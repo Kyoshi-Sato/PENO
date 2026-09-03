@@ -1,18 +1,37 @@
 ##Comparador.gd
 ## =====================
-## Compara a similaridade de movimentos entre dois vídeos usando os JSONs
-## gerados pelo hand_landmarker.
+## Compara a execução de um sinal pelo usuário com o gabarito, a partir
+## dos JSONs de landmarks {video_info, frames} exportados pelo
+## HolisticLandmarker (e servidos pela API para os gabaritos).
 ##
-## Abordagem:
-## - Trata pares de landmarks como os "ossos" da rig 3D
-## - Calcula vetores e ângulos de cada osso por frame
-## - Usa DTW (Dynamic Time Warping) para alinhar sequências de tamanhos diferentes
-## - Gera relatório de similaridade
+## Pipeline, na ordem em que os dados passam:
+##
+##  1. SUAVIZAÇÃO   filtro One-Euro de fase zero nos dois lados
+##                  (OneEuroFilter) — mata o tremor do MediaPipe sem
+##                  atrasar o gesto.
+##  2. NORMALIZAÇÃO reexpressa tudo no referencial do tronco (BodyFrame)
+##                  — remove o formato da imagem, a distância até a
+##                  câmera e a inclinação do aparelho.
+##  3. FEATURES     cada par de landmarks vira um "osso" e cada osso vira
+##                  um vetor unitário por quadro; as mãos ganham ainda
+##                  normal da palma e direção global.
+##  4. ALINHAMENTO  DTW multivariado com banda de Sakoe-Chiba sobre todos
+##                  os ossos do grupo, com backtracking do caminho ótimo
+##                  — absorve taxa de quadros, atraso de reação e
+##                  velocidade de execução diferentes.
+##  5. NOTA         ângulo médio por osso AO LONGO DO CAMINHO, convertido
+##                  em similaridade por uma curva exponencial e agregado
+##                  com pesos por osso e por grupo, mais um termo de
+##                  quantidade de movimento e um fator de cobertura de
+##                  detecção.
+##
+## Dados ausentes NÃO são excluídos da média: um grupo que o gabarito
+## exige e o usuário não executou vale 0%.
 ##
 ## Uso:
 ##   var comparator := MotionComparator.new()
-##   var results := comparator.analyze_similarity(json_a, json_b)
-##   comparator.print_summary(results, "VideoA", "VideoB")
+##   var results := comparator.analyze_similarity(execucao, gabarito)
+##   comparator.print_summary(results, "Usuário", "Gabarito")
 
 class_name MotionComparator
 extends RefCounted
@@ -21,20 +40,6 @@ extends RefCounted
 # ─────────────────────────────────────────────
 #  TIPOS DE DADOS INTERNOS
 # ─────────────────────────────────────────────
-
-## Representa um landmark 3D
-class Landmark:
-	var id: int
-	var x: float
-	var y: float
-	var z: float
-
-	func _init(p_id: int, p_x: float, p_y: float, p_z: float) -> void:
-		id = p_id
-		x  = p_x
-		y  = p_y
-		z  = p_z
-
 
 ## Representa um osso (par pai → filho)
 class Bone:
@@ -46,29 +51,6 @@ class Bone:
 		name       = p_name
 		idx_parent = p_parent
 		idx_child  = p_child
-
-
-## Resultado de um par de segmentos DTW
-class SegmentPair:
-	var pair_index: int
-	var seg_a_start: int
-	var seg_a_end: int
-	var seg_b_start: int
-	var seg_b_end: int
-	var dtw_similarity_pct: float
-
-
-## Resultado da análise de fase (segmentação de gestos)
-class PhaseData:
-	var segments_a: Array[Dictionary]   # [{start, end}]
-	var segments_b: Array[Dictionary]
-	var n_segments_a: int
-	var n_segments_b: int
-	var n_pairs: int
-	var pairs: Array[Dictionary]        # Array de SegmentPair serializado
-	var phase_similarity_pct: float
-	var velocity_a: PackedFloat64Array
-	var velocity_b: PackedFloat64Array
 
 
 # ─────────────────────────────────────────────
@@ -107,6 +89,24 @@ const GROUP_WEIGHTS: Dictionary = {
 ## Cobertura mínima de detecção para considerar que a referência "exige"
 ## um grupo (fração de frames do gabarito em que o grupo foi detectado).
 const MIN_REFERENCE_COVERAGE := 0.2
+
+## Fração da cobertura do gabarito que o usuário precisa alcançar para o
+## grupo valer nota cheia. Abaixo disso a nota do grupo é escalada
+## proporcionalmente, em vez de valer tudo ou nada.
+const MIN_USER_COVERAGE_RATIO := 0.3
+
+## Suavização temporal dos landmarks antes de qualquer medida.
+## Desligue apenas para isolar o efeito do filtro em testes.
+var enable_smoothing: bool = true
+
+## Reexpressa os landmarks no referencial do tronco (ver BodyFrame).
+## Desligue apenas para isolar o efeito da normalização em testes.
+var enable_body_normalization: bool = true
+
+## Alinhamento temporal por DTW. Desligado, cai no casamento por índice
+## de quadro (frame i com frame i), que era o comportamento antigo —
+## serve para medir o ganho do alinhamento.
+var enable_dtw_alignment: bool = true
 
 
 # ─────────────────────────────────────────────
@@ -302,25 +302,27 @@ func extract_palm_normals_per_frame(frames: Array, hand_side: String) -> Array[V
 	return normals
 
 
-## Compara as normais de palma entre dois vídeos.
-## frame_weights: pesos por frame (PackedFloat64Array vazia = sem pesos).
+## Compara as normais de palma entre as duas gravações, ao longo do
+## alinhamento temporal (o mesmo caminho usado para os ossos do grupo).
 func palm_orientation_similarity(
 		normals_a: Array[Vector3],
 		normals_b: Array[Vector3],
-		frame_weights: PackedFloat64Array) -> Dictionary:
+		path: Array[Vector2i],
+		weights_a: PackedFloat64Array,
+		weights_b: PackedFloat64Array) -> Dictionary:
 
 	var angle_diffs: PackedFloat64Array = PackedFloat64Array()
 	var weights_used: PackedFloat64Array = PackedFloat64Array()
 	var valid_frames: int = 0
 
-	var length: int = mini(normals_a.size(), normals_b.size())
-	for i: int in range(length):
-		var na: Vector3 = normals_a[i]
-		var nb: Vector3 = normals_b[i]
+	for step: Vector2i in path:
+		if step.x >= normals_a.size() or step.y >= normals_b.size():
+			continue
+		var na: Vector3 = normals_a[step.x]
+		var nb: Vector3 = normals_b[step.y]
 		if _is_valid_vec(na) and _is_valid_vec(nb):
 			angle_diffs.append(angle_between(na, nb))
-			var w: float = frame_weights[i] if (frame_weights.size() > 0 and i < frame_weights.size()) else 1.0
-			weights_used.append(w)
+			weights_used.append(_path_weight(step, weights_a, weights_b))
 			valid_frames += 1
 
 	if angle_diffs.size() == 0:
@@ -407,122 +409,218 @@ func extract_bone_vectors_per_frame(frames: Array, bones: Array[Bone], source: S
 	return bone_series
 
 
-## Dado dois arrays de vetores (com possíveis INF-sentinelas),
-## retorna PackedFloat64Array de ângulos frame a frame (NAN onde inválido).
-func series_to_angle_diff(series_a: Array, series_b: Array) -> PackedFloat64Array:
-	var length: int = mini(series_a.size(), series_b.size())
-	var angles: PackedFloat64Array = PackedFloat64Array()
-	angles.resize(length)
-	for i: int in range(length):
-		var va: Vector3 = series_a[i] as Vector3
-		var vb: Vector3 = series_b[i] as Vector3
-		if _is_valid_vec(va) and _is_valid_vec(vb):
-			angles[i] = angle_between(va, vb)
-		else:
-			angles[i] = NAN
-	return angles
-
-
 # ─────────────────────────────────────────────
 #  DTW — DYNAMIC TIME WARPING
 # ─────────────────────────────────────────────
 
-## Distância DTW entre duas séries 1D (NaN substituído por 0).
-## Implementação O(n*m) com matriz de custo.
-func compute_dtw_distance(seq_a: PackedFloat64Array, seq_b: PackedFloat64Array) -> float:
-	var n: int = seq_a.size()
-	var m: int = seq_b.size()
-	if n == 0 or m == 0:
-		return 0.0
+# ─────────────────────────────────────────────
+#  ALINHAMENTO TEMPORAL — DTW COM BANDA E CAMINHO
+# ─────────────────────────────────────────────
+#
+# É aqui que o DTW realmente entra na nota. A comparação anterior casava
+# o frame i do usuário com o frame i do gabarito, o que só funcionaria se
+# as duas gravações tivessem a mesma taxa e o gesto começasse no mesmo
+# instante — na prática o celular grava a ~12-25 fps, o gabarito a 30, e
+# o usuário reage ~0.5 s depois do "Vai!". O alinhamento resolve os três
+# problemas de uma vez: taxa, atraso e velocidade de execução.
 
-	# Substituir NaN por 0
-	var a: PackedFloat64Array = _nan_to_zero(seq_a)
-	var b: PackedFloat64Array = _nan_to_zero(seq_b)
+## Largura da banda de Sakoe-Chiba, como fração do maior comprimento.
+## Impede alinhamentos patológicos (um frame casando com meio gabarito) e
+## ainda corta a maior parte do custo do preenchimento.
+const DTW_BAND_FRACTION := 0.15
 
-	# Matriz DTW achatada (n x m)
+## Custo de uma célula sem nenhum osso detectado dos dois lados. É o
+## máximo possível de (1 - cos), então o caminho evita essas regiões sem
+## que fiquem intransponíveis — INF quebraria o alinhamento sempre que a
+## detecção piscasse.
+const DTW_MISSING_COST := 2.0
+
+
+## Custo local entre o frame i de A e o frame j de B: média ponderada de
+## (1 - cos θ) sobre os ossos detectados nos dois lados.
+##
+## Usa distância de corda em vez do ângulo porque é monotônica nele e
+## evita centenas de milhares de chamadas de acos ao preencher a matriz.
+## O ângulo exato é calculado depois, só ao longo do caminho escolhido.
+func _local_chord_cost(
+		series_a: Dictionary,
+		series_b: Dictionary,
+		bones: Array[Bone],
+		i: int,
+		j: int) -> float:
+
+	var weighted_sum: float = 0.0
+	var weight_total: float = 0.0
+
+	for bone: Bone in bones:
+		var va: Vector3 = (series_a[bone.name] as Array)[i]
+		var vb: Vector3 = (series_b[bone.name] as Array)[j]
+		if _is_valid_vec(va) and _is_valid_vec(vb):
+			var w: float = BONE_WEIGHTS.get(bone.name, 1.0)
+			weighted_sum += (1.0 - va.dot(vb)) * w
+			weight_total += w
+
+	if weight_total < 1e-9:
+		return DTW_MISSING_COST
+	return weighted_sum / weight_total
+
+
+## Caminho de alinhamento ótimo entre as duas sequências de frames.
+## Retorna pares (i, j) do início ao fim; vazio se não houver caminho.
+func compute_alignment_path(
+		series_a: Dictionary,
+		series_b: Dictionary,
+		bones: Array[Bone],
+		n_a: int,
+		n_b: int) -> Array[Vector2i]:
+
+	var path: Array[Vector2i] = []
+	if n_a <= 0 or n_b <= 0 or bones.is_empty():
+		return path
+
+	# A banda precisa comportar a diferença de comprimento, senão o canto
+	# final fica fora dela e não existe caminho.
+	var radius: int = maxi(
+		int(ceil(DTW_BAND_FRACTION * float(maxi(n_a, n_b)))),
+		absi(n_a - n_b) + 1)
+
 	var cost: PackedFloat64Array = PackedFloat64Array()
-	cost.resize(n * m)
+	cost.resize(n_a * n_b)
 	cost.fill(INF)
 
-	cost[0] = abs(a[0] - b[0])
+	var span_a: float = float(maxi(n_a - 1, 1))
+	var span_b: float = float(n_b - 1)
 
-	for i: int in range(1, n):
-		cost[i * m + 0] = abs(a[i] - b[0]) + cost[(i - 1) * m + 0]
-	for j: int in range(1, m):
-		cost[0 * m + j] = abs(a[0] - b[j]) + cost[0 * m + (j - 1)]
+	for i: int in range(n_a):
+		# Centro da banda: a diagonal proporcional (que é justamente o
+		# alinhamento esperado quando as taxas diferem).
+		var center: float = float(i) * span_b / span_a
+		var j_lo: int = maxi(0, int(floor(center)) - radius)
+		var j_hi: int = mini(n_b - 1, int(ceil(center)) + radius)
 
-	for i: int in range(1, n):
-		for j: int in range(1, m):
-			var local_cost: float = abs(a[i] - b[j])
-			var prev_min: float = minf(
-				cost[(i - 1) * m + j],
-				minf(cost[i * m + (j - 1)], cost[(i - 1) * m + (j - 1)])
-			)
-			cost[i * m + j] = local_cost + prev_min
+		for j: int in range(j_lo, j_hi + 1):
+			var local: float = _local_chord_cost(series_a, series_b, bones, i, j)
 
-	return cost[n * m - 1]
+			if i == 0 and j == 0:
+				cost[0] = local
+				continue
+
+			var best: float = INF
+			if i > 0:
+				best = minf(best, cost[(i - 1) * n_b + j])
+			if j > 0:
+				best = minf(best, cost[i * n_b + (j - 1)])
+			if i > 0 and j > 0:
+				best = minf(best, cost[(i - 1) * n_b + (j - 1)])
+
+			if is_inf(best):
+				continue   # célula fora do alcance da banda
+			cost[i * n_b + j] = local + best
+
+	if is_inf(cost[n_a * n_b - 1]):
+		return path
+
+	# Backtracking do canto final até a origem.
+	var bi: int = n_a - 1
+	var bj: int = n_b - 1
+	while bi > 0 or bj > 0:
+		path.append(Vector2i(bi, bj))
+		var diag: float = cost[(bi - 1) * n_b + (bj - 1)] if (bi > 0 and bj > 0) else INF
+		var up: float = cost[(bi - 1) * n_b + bj] if bi > 0 else INF
+		var left: float = cost[bi * n_b + (bj - 1)] if bj > 0 else INF
+
+		if diag <= up and diag <= left:
+			bi -= 1
+			bj -= 1
+		elif up <= left:
+			bi -= 1
+		else:
+			bj -= 1
+
+	path.append(Vector2i(0, 0))
+	path.reverse()
+	return path
 
 
-## Interpola uma sequência para tamanho fixo (100 pontos).
-## Ignora NaNs no processo de interpolação.
-func normalize_sequence(seq: PackedFloat64Array) -> PackedFloat64Array:
-	var target_size: int = 100
-	var result: PackedFloat64Array = PackedFloat64Array()
-	result.resize(target_size)
+## Ângulo médio entre duas séries de vetores ao longo do alinhamento.
+## Retorna NAN se nenhum par do caminho tiver os dois vetores válidos.
+func mean_angle_along_path(
+		vecs_a: Array,
+		vecs_b: Array,
+		path: Array[Vector2i],
+		weights_a: PackedFloat64Array,
+		weights_b: PackedFloat64Array) -> float:
 
-	# Coletar índices e valores válidos
-	var valid_x: PackedFloat64Array = PackedFloat64Array()
-	var valid_y: PackedFloat64Array = PackedFloat64Array()
-	for i: int in range(seq.size()):
-		if not is_nan(seq[i]):
-			valid_x.append(float(i))
-			valid_y.append(seq[i])
+	var weighted_sum: float = 0.0
+	var weight_total: float = 0.0
 
-	if valid_x.size() < 2:
-		result.fill(0.0)
-		return result
+	for step: Vector2i in path:
+		if step.x >= vecs_a.size() or step.y >= vecs_b.size():
+			continue
+		var va: Vector3 = vecs_a[step.x] as Vector3
+		var vb: Vector3 = vecs_b[step.y] as Vector3
+		if not _is_valid_vec(va) or not _is_valid_vec(vb):
+			continue
+		var w: float = _path_weight(step, weights_a, weights_b)
+		weighted_sum += angle_between(va, vb) * w
+		weight_total += w
 
-	var x_start: float = valid_x[0]
-	var x_end: float   = valid_x[valid_x.size() - 1]
+	if weight_total < 1e-9:
+		return NAN
+	return weighted_sum / weight_total
 
-	for i: int in range(target_size):
-		var x: float = x_start + (x_end - x_start) * float(i) / float(target_size - 1)
-		result[i] = _interpolate_1d(valid_x, valid_y, x)
 
+## Ângulo médio por osso, ao longo do alinhamento.
+## Retorna Dictionary{ bone_name -> float (NAN se sem pares válidos) }.
+func mean_angles_along_path(
+		series_a: Dictionary,
+		series_b: Dictionary,
+		bones: Array[Bone],
+		path: Array[Vector2i],
+		weights_a: PackedFloat64Array,
+		weights_b: PackedFloat64Array) -> Dictionary:
+
+	var sums: Dictionary = {}
+	var totals: Dictionary = {}
+	for bone: Bone in bones:
+		sums[bone.name] = 0.0
+		totals[bone.name] = 0.0
+
+	for step: Vector2i in path:
+		var w: float = _path_weight(step, weights_a, weights_b)
+		for bone: Bone in bones:
+			var va: Vector3 = (series_a[bone.name] as Array)[step.x]
+			var vb: Vector3 = (series_b[bone.name] as Array)[step.y]
+			if _is_valid_vec(va) and _is_valid_vec(vb):
+				sums[bone.name] += angle_between(va, vb) * w
+				totals[bone.name] += w
+
+	var result: Dictionary = {}
+	for bone: Bone in bones:
+		var total: float = totals[bone.name]
+		result[bone.name] = (sums[bone.name] / total) if total > 1e-9 else NAN
 	return result
 
 
-## Interpolação linear 1D para um ponto x dado arrays sorted de xs e ys.
-func _interpolate_1d(xs: PackedFloat64Array, ys: PackedFloat64Array, x: float) -> float:
-	var n: int = xs.size()
-	if n == 0:
-		return 0.0
-	if x <= xs[0]:
-		return ys[0]
-	if x >= xs[n - 1]:
-		return ys[n - 1]
-	# Busca binária
-	var lo: int = 0
-	var hi: int = n - 1
-	while hi - lo > 1:
-		var mid: int = (lo + hi) / 2
-		if xs[mid] <= x:
-			lo = mid
-		else:
-			hi = mid
-	var t: float = (x - xs[lo]) / (xs[hi] - xs[lo])
-	return ys[lo] + t * (ys[hi] - ys[lo])
+## Peso de um par alinhado: o menor dos dois pesos de repouso, para que
+## um trecho parado de qualquer lado pese pouco.
+func _path_weight(
+		step: Vector2i,
+		weights_a: PackedFloat64Array,
+		weights_b: PackedFloat64Array) -> float:
+
+	var wa: float = weights_a[step.x] if step.x < weights_a.size() else 1.0
+	var wb: float = weights_b[step.y] if step.y < weights_b.size() else 1.0
+	return minf(wa, wb)
 
 
-## DTW entre duas sequências de segmento, retorna similaridade 0–100.
-func segment_similarity_dtw(seq_a: PackedFloat64Array, seq_b: PackedFloat64Array) -> float:
-	if seq_a.size() == 0 or seq_b.size() == 0:
-		return 0.0
-	var a: PackedFloat64Array = _nan_to_zero(seq_a)
-	var b: PackedFloat64Array = _nan_to_zero(seq_b)
-	var dist: float = compute_dtw_distance(a, b)
-	var norm_dist: float = dist / float(a.size() + b.size())
-	return maxf(0.0, 100.0 * (1.0 - minf(norm_dist * 10.0, 1.0)))
+## Caminho identidade (frame i com frame i), usado como degeneração
+## quando não há alinhamento possível.
+func identity_path(n_a: int, n_b: int) -> Array[Vector2i]:
+	var path: Array[Vector2i] = []
+	for i: int in range(mini(n_a, n_b)):
+		path.append(Vector2i(i, i))
+	return path
 
 
 # ─────────────────────────────────────────────
@@ -546,21 +644,6 @@ func build_rest_weights(n_frames: int, fps: float, rest_sec: float = 1.0, rest_w
 			weights[i] = rest_weight + (1.0 - rest_weight) * t
 
 	return weights
-
-
-## Média ponderada dos ângulos de diferença, ignorando NaNs.
-func weighted_mean_angle(angle_diffs: PackedFloat64Array, frame_weights: PackedFloat64Array) -> float:
-	var w_sum: float = 0.0
-	var w_total: float = 0.0
-	var n: int = mini(angle_diffs.size(), frame_weights.size() if frame_weights.size() > 0 else angle_diffs.size())
-	for i: int in range(n):
-		if not is_nan(angle_diffs[i]):
-			var w: float = frame_weights[i] if frame_weights.size() > 0 else 1.0
-			w_sum   += angle_diffs[i] * w
-			w_total += w
-	if w_total < 1e-9:
-		return NAN
-	return w_sum / w_total
 
 
 # ─────────────────────────────────────────────
@@ -677,61 +760,51 @@ func detect_gesture_segments(
 	return result
 
 
-## Detecta fases de gesto, emparelha segmentos e calcula DTW por par.
+## Compara a QUANTIDADE de movimento das duas execuções.
+##
+## Antes, este termo emparelhava o segmento i do usuário com o segmento i
+## do gabarito e rodava um DTW 1-D sobre a componente x de um único osso
+## proxy. Era frágil (uma piscada da detecção fabricava segmentos, e o
+## movimento de abaixar o braço depois de tocar na tela virava "segmento
+## 1", casado contra o sinal de verdade) e, desde que o alinhamento
+## temporal passou a ser feito de verdade sobre todos os ossos, também
+## redundante.
+##
+## O que sobrou é o que só este termo mede: se o usuário se moveu tanto
+## quanto o gabarito exige. Usamos o comprimento total da trajetória
+## (soma dos deslocamentos), que independe da taxa de amostragem e, com a
+## normalização de tronco, também da distância até a câmera.
 func analyze_gesture_phases(
 		frames_a: Array,
 		frames_b: Array,
 		source: String,
-		bones: Array[Bone]) -> Dictionary:
+		_bones: Array[Bone]) -> Dictionary:
 
 	var vel_a: PackedFloat64Array = compute_motion_velocity(frames_a, source)
 	var vel_b: PackedFloat64Array = compute_motion_velocity(frames_b, source)
 
+	# Segmentos continuam sendo detectados: servem de diagnóstico e são o
+	# critério de "não se moveu".
 	var segs_a: Array[Dictionary] = detect_gesture_segments(vel_a)
 	var segs_b: Array[Dictionary] = detect_gesture_segments(vel_b)
 
-	var n_pairs: int = mini(segs_a.size(), segs_b.size())
-	var pairs: Array[Dictionary] = []
+	var travel_a: float = _sum_packed(vel_a)
+	var travel_b: float = _sum_packed(vel_b)
 
-	# Usar o primeiro osso como proxy para DTW de segmento
-	var proxy_bone: Bone = bones[0] if bones.size() > 0 else null
-
-	if proxy_bone != null:
-		for i: int in range(n_pairs):
-			var sa_start: int = segs_a[i]["start"]
-			var sa_end:   int = segs_a[i]["end"]
-			var sb_start: int = segs_b[i]["start"]
-			var sb_end:   int = segs_b[i]["end"]
-
-			var seg_vecs_a: PackedFloat64Array = _extract_bone_x_segment(frames_a, proxy_bone, source, sa_start, sa_end)
-			var seg_vecs_b: PackedFloat64Array = _extract_bone_x_segment(frames_b, proxy_bone, source, sb_start, sb_end)
-
-			var dtw_sim: float = segment_similarity_dtw(seg_vecs_a, seg_vecs_b)
-
-			pairs.append({
-				"pair_index": i + 1,
-				"segment_a": {"start": sa_start, "end": sa_end, "duration_frames": sa_end - sa_start},
-				"segment_b": {"start": sb_start, "end": sb_end, "duration_frames": sb_end - sb_start},
-				"dtw_similarity_pct": snappedf(dtw_sim, 0.1),
-			})
-
-	# Score de fase: média ponderada pela cobertura
 	var phase_sim: float = NAN
-	if pairs.size() > 0:
-		var dtw_scores: PackedFloat64Array = PackedFloat64Array()
-		for p: Dictionary in pairs:
-			dtw_scores.append(float(p["dtw_similarity_pct"]))
-		var base_score: float = _mean_packed(dtw_scores)
-		var max_segs: int = maxi(segs_a.size(), segs_b.size())
-		var coverage: float = float(n_pairs) / float(max_segs) if max_segs > 0 else 1.0
-		phase_sim = base_score * coverage
-	elif segs_a.is_empty() and not segs_b.is_empty() \
-			and _detection_coverage(frames_b, source) >= MIN_REFERENCE_COVERAGE:
-		# A referência (B) tem movimento e o usuário (A) não se moveu:
-		# fase = 0. Antes ficava NAN e era silenciosamente ignorada na
-		# nota, então ficar parado não custava nada. O gate de cobertura
-		# evita zerar grupos que a referência não exige (detecção espúria).
+	var reference_moves: bool = (
+		not segs_b.is_empty()
+		and _detection_coverage(frames_b, source) >= MIN_REFERENCE_COVERAGE)
+
+	if reference_moves and segs_a.is_empty():
+		# O gabarito se move e o usuário não: penalidade explícita. Antes
+		# isso ficava NAN e era silenciosamente ignorado na nota, então
+		# ficar parado não custava nada.
 		phase_sim = 0.0
+	elif reference_moves and travel_b > 1e-9:
+		# Razão entre os percursos: pune tanto mover de menos quanto de
+		# mais, e satura em 100% quando são iguais.
+		phase_sim = 100.0 * minf(travel_a, travel_b) / maxf(travel_a, travel_b)
 
 	# Serializar segmentos para Dictionary
 	var segs_a_dict: Array[Dictionary] = []
@@ -746,28 +819,12 @@ func analyze_gesture_phases(
 		"segments_b": segs_b_dict,
 		"n_segments_a": segs_a.size(),
 		"n_segments_b": segs_b.size(),
-		"n_pairs": n_pairs,
-		"pairs": pairs,
+		"travel_a": travel_a,
+		"travel_b": travel_b,
 		"phase_similarity_pct": phase_sim,
 		"velocity_a": _packed_to_array(vel_a),
 		"velocity_b": _packed_to_array(vel_b),
 	}
-
-
-## Extrai a componente X do vetor de um osso num segmento de frames.
-func _extract_bone_x_segment(
-		frames: Array,
-		bone: Bone,
-		source: String,
-		seg_start: int,
-		seg_end: int) -> PackedFloat64Array:
-
-	var result: PackedFloat64Array = PackedFloat64Array()
-	for fi: int in range(seg_start, mini(seg_end, frames.size())):
-		var lm_list: Array = _get_landmarks_from_frame(frames[fi] as Dictionary, source)
-		var vec: Vector3 = bone_vector(lm_list, bone.idx_parent, bone.idx_child) if lm_list.size() > 0 else Vector3(INF, INF, INF)
-		result.append(vec.x if _is_valid_vec(vec) else NAN)
-	return result
 
 
 # ─────────────────────────────────────────────
@@ -793,6 +850,26 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 	var frames_a: Array = json_a.get("frames", []) as Array
 	var frames_b: Array = json_b.get("frames", []) as Array
 
+	# Suavização One-Euro (duas passadas, sem atraso) nos DOIS lados —
+	# aplicar só de um lado introduziria viés. Estabiliza principalmente a
+	# normal da palma, que é um produto vetorial de pontos vizinhos e
+	# amplifica o tremor do MediaPipe.
+	if enable_smoothing:
+		frames_a = OneEuroFilter.filter_frames(frames_a)
+		frames_b = OneEuroFilter.filter_frames(frames_b)
+
+	# Normalização espacial pelo tronco: tira a anisotropia de formato
+	# (celular retrato vs gabarito paisagem), a distância até a câmera e a
+	# inclinação do aparelho. Só vale se OS DOIS lados puderem ser
+	# normalizados — meia normalização seria pior que nenhuma.
+	var body_normalized: bool = (
+		enable_body_normalization
+		and BodyFrame.has_usable_basis(frames_a)
+		and BodyFrame.has_usable_basis(frames_b))
+	if body_normalized:
+		frames_a = BodyFrame.normalize_frames(frames_a)
+		frames_b = BodyFrame.normalize_frames(frames_b)
+
 	var video_info_a: Dictionary = json_a.get("video_info", {}) as Dictionary
 	var video_info_b: Dictionary = json_b.get("video_info", {}) as Dictionary
 	var fps_a: float = float(video_info_a.get("fps", 30.0))
@@ -801,14 +878,10 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 	var rest_weights_a: PackedFloat64Array = build_rest_weights(frames_a.size(), fps_a)
 	var rest_weights_b: PackedFloat64Array = build_rest_weights(frames_b.size(), fps_b)
 
-	var n_common: int = mini(frames_a.size(), frames_b.size())
-	# frame_weights = min(wa, wb) para cada frame em comum
-	var frame_weights: PackedFloat64Array = PackedFloat64Array()
-	frame_weights.resize(n_common)
-	for i: int in range(n_common):
-		frame_weights[i] = minf(rest_weights_a[i], rest_weights_b[i])
-
 	var results: Dictionary = {}
+	# Caminho de alinhamento por grupo, reaproveitado pela palma e pela
+	# direção da mão para que tudo seja medido no mesmo casamento temporal.
+	var group_paths: Dictionary = {}
 
 	# Grupos: [nome, bones, source]
 	var groups: Array[Dictionary] = [
@@ -825,15 +898,24 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 		var series_a: Dictionary = extract_bone_vectors_per_frame(frames_a, bones, source)
 		var series_b: Dictionary = extract_bone_vectors_per_frame(frames_b, bones, source)
 
+		# Alinhamento temporal: casa os frames pelo conteúdo do gesto, não
+		# pelo índice. Absorve taxa de quadros diferente, atraso de reação
+		# e variação de velocidade de execução.
+		var path: Array[Vector2i] = []
+		if enable_dtw_alignment:
+			path = compute_alignment_path(
+				series_a, series_b, bones, frames_a.size(), frames_b.size())
+		if path.is_empty():
+			path = identity_path(frames_a.size(), frames_b.size())
+		group_paths[group_name] = path
+
+		var mean_angles: Dictionary = mean_angles_along_path(
+			series_a, series_b, bones, path, rest_weights_a, rest_weights_b)
+
 		var bone_results: Dictionary = {}
 
 		for bone: Bone in bones:
-			var raw_a: Array = series_a[bone.name] as Array
-			var raw_b: Array = series_b[bone.name] as Array
-
-			# Ângulo médio ponderado
-			var angle_diffs: PackedFloat64Array = series_to_angle_diff(raw_a, raw_b)
-			var mean_angle_diff: float = weighted_mean_angle(angle_diffs, frame_weights)
+			var mean_angle_diff: float = float(mean_angles.get(bone.name, NAN))
 
 			var steepness: float = 3.0 if source != "pose" else 2.0
 			var similarity_pct: float = angle_to_similarity(mean_angle_diff, steepness) if not is_nan(mean_angle_diff) else NAN
@@ -884,9 +966,15 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 		var side: String  = hs["side"] as String
 		var label: String = hs["label"] as String
 
+		# Mesmo alinhamento temporal usado nos ossos deste grupo.
+		var hand_path: Array[Vector2i] = group_paths.get(label, [] as Array[Vector2i])
+		if hand_path.is_empty():
+			hand_path = identity_path(frames_a.size(), frames_b.size())
+
 		var normals_a: Array[Vector3] = extract_palm_normals_per_frame(frames_a, side)
 		var normals_b: Array[Vector3] = extract_palm_normals_per_frame(frames_b, side)
-		var palm_sim: Dictionary = palm_orientation_similarity(normals_a, normals_b, frame_weights)
+		var palm_sim: Dictionary = palm_orientation_similarity(
+			normals_a, normals_b, hand_path, rest_weights_a, rest_weights_b)
 
 		var key: String = "_palm_%s" % side.to_lower()
 		results[key] = palm_sim
@@ -902,9 +990,9 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 			# Direção global da mão — pulso → ponta dedo médio
 			var dirs_a: Array[Vector3] = _extract_hand_directions(frames_a, side)
 			var dirs_b: Array[Vector3] = _extract_hand_directions(frames_b, side)
-			var dir_diffs: PackedFloat64Array = series_to_angle_diff(
-				_vec3_array_to_variant(dirs_a), _vec3_array_to_variant(dirs_b))
-			var mean_dir_diff: float = weighted_mean_angle(dir_diffs, frame_weights)
+			var mean_dir_diff: float = mean_angle_along_path(
+				_vec3_array_to_variant(dirs_a), _vec3_array_to_variant(dirs_b),
+				hand_path, rest_weights_a, rest_weights_b)
 			var dir_sim: float = angle_to_similarity(mean_dir_diff, 3.5) if not is_nan(mean_dir_diff) else NAN
 
 			# Recalcular w_sum / w_total a partir dos ossos do grupo
@@ -953,17 +1041,36 @@ func analyze_similarity(json_a: Dictionary, json_b: Dictionary) -> Dictionary:
 		var g_name: String = group_info["name"] as String
 		var g_source: String = group_info["source"] as String
 		var g_dict: Dictionary = results[g_name] as Dictionary
-		if _detection_coverage(frames_b, g_source) < MIN_REFERENCE_COVERAGE:
+
+		var coverage_a: float = _detection_coverage(frames_a, g_source)
+		var coverage_b: float = _detection_coverage(frames_b, g_source)
+		g_dict["detection_coverage"] = coverage_a
+
+		if coverage_b < MIN_REFERENCE_COVERAGE:
 			# A referência não exige o grupo — segue fora da média se NAN.
 			continue
+
 		if is_nan(float(g_dict.get("group_similarity_pct", NAN))):
 			g_dict["group_similarity_pct"] = 0.0
 		# O flag é por detecção, não pela nota: a fase pode já ter zerado
 		# o grupo, mas "nunca visto no usuário" continua valendo o aviso.
-		if _detection_coverage(frames_a, g_source) <= 0.0:
+		if coverage_a <= 0.0:
 			g_dict["missing_in_user"] = true
 			missing_groups.append(g_name)
+
+		# Piso de cobertura: uma mão vista em poucos quadros não pode
+		# pontuar com peso cheio (antes, 3 quadros de detecção rendiam a
+		# nota inteira do grupo). O fator é contínuo de propósito — um
+		# corte seco recriaria a descontinuidade que queremos eliminar.
+		var required: float = coverage_b * MIN_USER_COVERAGE_RATIO
+		if required > 0.0:
+			var factor: float = clampf(coverage_a / required, 0.0, 1.0)
+			g_dict["coverage_factor"] = factor
+			if factor < 1.0:
+				g_dict["group_similarity_pct"] = \
+					float(g_dict["group_similarity_pct"]) * factor
 	results["_missing_groups"] = missing_groups
+	results["_body_normalized"] = body_normalized
 
 	# ── Similaridade global ponderada ──
 	var g_sum: float = 0.0
@@ -1168,13 +1275,11 @@ func print_summary(results: Dictionary, label_a: String, label_b: String) -> voi
 #  UTILITÁRIOS MATEMÁTICOS INTERNOS
 # ─────────────────────────────────────────────
 
-## Substitui NaN por 0 em uma PackedFloat64Array.
-func _nan_to_zero(arr: PackedFloat64Array) -> PackedFloat64Array:
-	var result: PackedFloat64Array = arr.duplicate()
-	for i: int in range(result.size()):
-		if is_nan(result[i]):
-			result[i] = 0.0
-	return result
+func _sum_packed(arr: PackedFloat64Array) -> float:
+	var total: float = 0.0
+	for v: float in arr:
+		total += v
+	return total
 
 
 ## Média simples de uma PackedFloat64Array.

@@ -6,7 +6,9 @@
       "Bash(mkdir -p ~/.local/share/godot/export_templates)",
       "Bash(unzip -q /home/kyoshi/.claude/jobs/865e56b5/tmp/godot471_templates.tpz -d /home/kyoshi/.claude/jobs/865e56b5/tmp/tpl)",
       "Bash(mv /home/kyoshi/.claude/jobs/865e56b5/tmp/tpl/templates ~/.local/share/godot/export_templates/4.7.1.stable)",
-      "Read(//home/kyoshi/.local/share/godot/export_templates/**)"
+      "Read(//home/kyoshi/.local/share/godot/export_templates/**)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'feat: DTW multivariado com banda e caminho ótimo \\(item 7\\) *)"
     ]
   }
 }
