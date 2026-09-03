@@ -11,4 +11,10 @@
       "Bash(git commit -q -m 'feat: DTW multivariado com banda e caminho ótimo \\(item 7\\) *)"
     ]
   }
+  {
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
+}
 }
