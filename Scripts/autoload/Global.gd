@@ -17,6 +17,7 @@ const BUNDLED_MODEL_DIR := "res://assets/mediapipe"
 const MAIN_SCENE := "res://GUI/Screens/Main/Main.tscn"
 const LESSON_SCENE := "res://GUI/lessonscreen/LessonScreen.tscn"
 const MAP_SCENE := "res://GUI/lessonmap/LessonMapScreen.tscn"
+const PROGRESS_SCENE := "res://GUI/progress/ProgressScreen.tscn"
 
 # Se seu projeto ainda usa o caminho antigo do GDMP demo, troque MAIN_SCENE por:
 # const MAIN_SCENE := "res://GUI/Screens/Main.tscn"
@@ -41,6 +42,10 @@ var _progress: Dictionary = {}
 
 func _ready() -> void:
 	_load_progress()
+	# Aquece o cache das telas em segundo plano: sem isso, só a PRIMEIRA
+	# visita a cada tela paga o parse do avatar. As requisições são
+	# assíncronas e não seguram o primeiro frame.
+	call_deferred("warm_scene_cache")
 
 
 # ============================================================
@@ -173,20 +178,326 @@ func reset_progress() -> void:
 
 
 # ============================================================
+# GAMIFICAÇÃO — XP, NÍVEL, OFENSIVA
+# ============================================================
+#
+# A UI já tinha lugares para XP, streak, nível e "sinais dominados", mas
+# nenhum dado por trás: os cards ficavam `visible = false` com o texto
+# "TODO: sistema de XP/recompensas" dentro. Ou se apagavam esses elementos,
+# ou eles passavam a ser verdade. Isto é o mínimo para serem verdade.
+#
+# Fica dentro de `_progress`, sob uma chave reservada que nunca colide com
+# um id de lição (que é sempre numérico), para reaproveitar exatamente o
+# mesmo caminho de carga/gravação — inclusive o stub usado nos testes.
+
+const STATS_KEY := "_stats"
+const XP_PER_LEVEL := 500
+## XP por estrela ganha. Só a MELHORA conta (ver `award_sign_result`).
+const XP_PER_STAR := 20
+
+
+func _stats() -> Dictionary:
+	var s: Variant = _progress.get(STATS_KEY, null)
+	if s is Dictionary:
+		return s as Dictionary
+	var fresh: Dictionary = {
+		"xp": 0,
+		"streak": 0,
+		"best_streak": 0,
+		"last_day": "",
+		"practices": 0,
+		"precision_sum": 0.0,
+		"signs": {},   # "lesson:index" -> melhor nº de estrelas
+	}
+	_progress[STATS_KEY] = fresh
+	return fresh
+
+
+func get_xp() -> int:
+	return int(_stats().get("xp", 0))
+
+
+func get_level() -> int:
+	return get_xp() / XP_PER_LEVEL + 1
+
+
+## XP acumulado dentro do nível atual.
+func get_xp_into_level() -> int:
+	return get_xp() % XP_PER_LEVEL
+
+
+## Fração 0..1 do nível atual — alimenta a barra de XP.
+func get_level_progress() -> float:
+	return float(get_xp_into_level()) / float(XP_PER_LEVEL)
+
+
+func get_streak() -> int:
+	return int(_stats().get("streak", 0))
+
+
+func get_best_streak() -> int:
+	return int(_stats().get("best_streak", 0))
+
+
+func get_practice_count() -> int:
+	return int(_stats().get("practices", 0))
+
+
+## Precisão média de todas as tentativas (0..1). -1 quando nunca praticou,
+## para a UI poder esconder o dado em vez de mostrar "0%".
+func get_average_precision() -> float:
+	var s := _stats()
+	var n: int = int(s.get("practices", 0))
+	if n <= 0:
+		return -1.0
+	return float(s.get("precision_sum", 0.0)) / float(n)
+
+
+## Lições marcadas como concluídas, independentemente do catálogo atual.
+func count_completed_lessons() -> int:
+	var count: int = 0
+	for key: Variant in _progress:
+		var k: String = String(key)
+		if k == STATS_KEY:
+			continue
+		var entry: Variant = _progress[k]
+		if entry is Dictionary and bool((entry as Dictionary).get("completed", false)):
+			count += 1
+	return count
+
+
+## Quantos sinais o usuário já executou com nota máxima.
+func get_mastered_signs() -> int:
+	var signs: Dictionary = _stats().get("signs", {}) as Dictionary
+	var count: int = 0
+	for key: Variant in signs:
+		if int(signs[key]) >= 3:
+			count += 1
+	return count
+
+
+## Concede XP pela MELHORA da nota de um sinal e devolve quanto foi concedido.
+##
+## Premiar toda tentativa deixaria o XP infinito (basta repetir o mesmo sinal);
+## premiar só a primeira punia quem erra na estreia e depois acerta. Pagar a
+## diferença resolve os dois: o teto por sinal é 3 estrelas, sempre alcançável.
+func award_sign_result(lesson_id: int, sign_index: int, stars: int) -> int:
+	var s := _stats()
+	var signs: Dictionary = s.get("signs", {}) as Dictionary
+	var key := "%d:%d" % [lesson_id, sign_index]
+	var best: int = int(signs.get(key, 0))
+	var earned: int = clampi(stars, 0, 3)
+	if earned <= best:
+		return 0
+
+	var gained: int = (earned - best) * XP_PER_STAR
+	signs[key] = earned
+	s["signs"] = signs
+	s["xp"] = int(s.get("xp", 0)) + gained
+	_progress[STATS_KEY] = s
+	_save_progress()
+	return gained
+
+
+## Registra uma tentativa de prática: atualiza a ofensiva e a precisão média.
+## Chame uma vez por gravação avaliada, mesmo quando a nota for baixa —
+## a ofensiva mede constância, não acerto.
+func register_practice(precision: float) -> void:
+	var s := _stats()
+	s["practices"] = int(s.get("practices", 0)) + 1
+	s["precision_sum"] = float(s.get("precision_sum", 0.0)) + clampf(precision, 0.0, 1.0)
+	_touch_streak(s)
+	_progress[STATS_KEY] = s
+	_save_progress()
+
+
+## Dias consecutivos com pelo menos uma prática.
+## `today` é injetável para os testes não dependerem do relógio do sistema.
+func _touch_streak(s: Dictionary, today: String = "") -> void:
+	if today.is_empty():
+		today = Time.get_date_string_from_system()
+
+	var last: String = String(s.get("last_day", ""))
+	if last == today:
+		return   # já contou hoje
+
+	var streak: int = int(s.get("streak", 0))
+	if last.is_empty():
+		streak = 1
+	elif _days_between(last, today) == 1:
+		streak += 1
+	else:
+		streak = 1   # quebrou a sequência
+
+	s["streak"] = streak
+	s["best_streak"] = maxi(int(s.get("best_streak", 0)), streak)
+	s["last_day"] = today
+
+
+## Diferença em dias entre duas datas "AAAA-MM-DD". -1 se alguma for inválida.
+func _days_between(from_day: String, to_day: String) -> int:
+	var a := Time.get_unix_time_from_datetime_string(from_day + "T00:00:00")
+	var b := Time.get_unix_time_from_datetime_string(to_day + "T00:00:00")
+	if a <= 0 or b <= 0:
+		return -1
+	return int(round(float(b - a) / 86400.0))
+
+
+# ============================================================
 # NAVEGAÇÃO
 # ============================================================
+#
+# `change_scene_to_file()` carrega o PackedScene de forma SÍNCRONA no meio do
+# frame. Para a LessonScreen isso significa destravar o GLB do avatar, suas
+# texturas e o grafo do MediaPipe de uma vez só — o app congelava por vários
+# frames a cada troca de tela, sem nada indicando que estava trabalhando.
+#
+# Aqui a troca passa a ser:
+#   1. esmaece para a cor de fundo do app (0,18 s)   ← cobre a costura
+#   2. carrega o recurso em thread, sem travar o frame
+#   3. troca a cena e espera o layout assentar
+#   4. revela (0,28 s)
+#
+# O carregamento pesado acontece atrás do véu, e o Godot cacheia o recurso —
+# então da segunda visita em diante a etapa 2 é instantânea. O avatar é
+# compartilhado entre a Home e a LessonScreen, então a primeira transição já
+# aquece o cache das duas.
+
+## Acima de qualquer CanvasLayer das cenas.
+const TRANSITION_LAYER := 128
+
+var _fade: ColorRect = null
+var _is_changing: bool = false
+
+## PackedScenes das telas principais, mantidos vivos de propósito.
+##
+## O Godot só cacheia um recurso enquanto alguém o referencia. Ao trocar de
+## cena, o PackedScene sai de escopo e leva junto tudo o que ele referencia —
+## inclusive o GLB do avatar e as ~20 texturas dele. Voltar para a Home
+## reparseava tudo: medido em ~1,15 s POR TROCA, em cima de uma instanciação
+## que leva só 3,8 ms. Segurar os PackedScenes aqui elimina esse trabalho
+## repetido; o custo é a malha e as texturas do avatar ficarem residentes,
+## que é justamente o que as duas telas mais visitadas usam.
+var _scene_cache: Dictionary = {}
+
 
 func go_to_lesson(lesson_id: int) -> void:
 	current_lesson_id = lesson_id
-	get_tree().change_scene_to_file(LESSON_SCENE)
+	change_scene(LESSON_SCENE)
 
 
 func go_to_map() -> void:
-	get_tree().change_scene_to_file(MAP_SCENE)
+	change_scene(MAP_SCENE)
 
 
 func go_to_main_scene() -> void:
-	get_tree().change_scene_to_file(MAIN_SCENE)
+	change_scene(MAIN_SCENE)
+
+
+func go_to_progress() -> void:
+	change_scene(PROGRESS_SCENE)
+
+
+## Troca de cena com transição. Ignora chamadas enquanto outra troca está em
+## andamento — sem isso, dois toques rápidos empilham duas trocas e a segunda
+## roda contra uma árvore que já foi liberada.
+func change_scene(path: String) -> void:
+	if _is_changing:
+		return
+	_is_changing = true
+
+	_ensure_fade()
+	_fade.visible = true
+
+	# O pedido de carga sai ANTES do fade: os 0,18 s do esmaecimento já são
+	# tempo de carregamento útil em vez de espera pura.
+	var cached: bool = _scene_cache.has(path)
+	if not cached:
+		ResourceLoader.load_threaded_request(path)
+
+	var fade_out := create_tween()
+	fade_out.set_ease(Tween.EASE_OUT)
+	fade_out.tween_property(_fade, "modulate:a", 1.0, DS.DUR_FAST)
+	await fade_out.finished
+
+	var packed: PackedScene = null
+	if cached:
+		packed = _scene_cache[path] as PackedScene
+	else:
+		packed = await _await_threaded_load(path)
+		if packed != null:
+			_scene_cache[path] = packed
+
+	if packed == null:
+		push_error("Falha ao carregar cena: %s" % path)
+		await _reveal()
+		return
+
+	get_tree().change_scene_to_packed(packed)
+
+	# Dois frames: um para a nova cena entrar na árvore e rodar _ready(), outro
+	# para os containers resolverem o layout. Revelar antes disso mostra a tela
+	# com os elementos ainda no lugar errado.
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	await _reveal()
+
+
+func _reveal() -> void:
+	var fade_in := create_tween()
+	fade_in.set_ease(Tween.EASE_OUT)
+	fade_in.tween_property(_fade, "modulate:a", 0.0, DS.DUR_FAST)
+	await fade_in.finished
+	_fade.visible = false
+	_is_changing = false
+
+
+func _await_threaded_load(path: String) -> PackedScene:
+	while true:
+		var progress: Array = []
+		var status := ResourceLoader.load_threaded_get_status(path, progress)
+		if status == ResourceLoader.THREAD_LOAD_LOADED:
+			return ResourceLoader.load_threaded_get(path) as PackedScene
+		if status != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			return null
+		await get_tree().process_frame
+	return null
+
+
+## Pede em segundo plano o carregamento das telas principais e guarda o
+## resultado no cache. Idempotente: chamar de novo não repete trabalho.
+func warm_scene_cache() -> void:
+	for path: String in [MAIN_SCENE, MAP_SCENE, PROGRESS_SCENE, LESSON_SCENE]:
+		if _scene_cache.has(path):
+			continue
+		ResourceLoader.load_threaded_request(path)
+		var packed: PackedScene = await _await_threaded_load(path)
+		if packed != null:
+			_scene_cache[path] = packed
+
+
+## O véu vive num CanvasLayer do autoload, não da cena: ele precisa
+## sobreviver justamente ao momento em que a cena é destruída e recriada.
+## Criado sob demanda para que os testes (que instanciam Global sem árvore
+## de UI) nunca montem nada disso.
+func _ensure_fade() -> void:
+	if _fade != null and is_instance_valid(_fade):
+		return
+
+	var layer := CanvasLayer.new()
+	layer.layer = TRANSITION_LAYER
+	add_child(layer)
+
+	_fade = ColorRect.new()
+	# Esmaecer para o fundo do app, não para preto: a transição some dentro
+	# da identidade visual em vez de piscar um retângulo escuro.
+	_fade.color = DS.BG
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_STOP   # engole toques durante a troca
+	_fade.modulate.a = 0.0
+	_fade.visible = false
+	layer.add_child(_fade)
 
 
 # ============================================================

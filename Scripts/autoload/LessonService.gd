@@ -173,6 +173,8 @@ func _build_lesson(lesson_id: int, payload: Dictionary) -> Lesson:
 			else:
 				push_warning("json_sinal do sinal '%s' não pôde ser parseado" % nome)
 
+		json_sinal = _normalize_json_sinal(json_sinal)
+
 		sinais_limpos.append({
 			"nome_sinal": nome,
 			"json_sinal": json_sinal,
@@ -191,6 +193,88 @@ func _build_lesson(lesson_id: int, payload: Dictionary) -> Lesson:
 		print("  - nome: '", s.nome_sinal, "' | json_sinal keys: ", s.json_sinal.keys())
 		print("[LessonService] lesson.sinais.size() depois de atribuir = ", lesson.sinais.size())
 	return lesson
+
+
+## A API devolve o gabarito num formato compacto, diferente do que o
+## HolisticLandmarker exporta e o MotionComparator espera:
+##
+##   API:      {"frames": [{"t": <segundos>,
+##                           "pose": [{x,y,z,visibility}, ...33, posicional],
+##                           "hands": {"left": [{x,y,z}, ...21|null],
+##                                     "right": [{x,y,z}, ...21|null]}}]}
+##
+##   esperado: {"video_info": {...},
+##              "frames": [{"timestamp_ms": <int>,
+##                          "pose": [{"landmarks": [{"id","x","y","z"}, ...33]}],
+##                          "hands": [{"handedness": "Left"/"Right",
+##                                     "landmarks": [{"id","x","y","z"}, ...21]}]}]}
+##
+## Sem esta conversão, validate_reference_schema() (MotionWrapper.gd) lê
+## pose[0].get("landmarks") como vazio pra TODO gabarito e rejeita a
+## avaliação inteira — a nota fica sempre em 0% ("Ops! Não conseguimos
+## avaliar sua gravação"), mesmo com o gabarito e a gravação corretos.
+##
+## Se o JSON já vier no formato esperado (histórico, ou testes locais),
+## esta função não mexe em nada.
+func _normalize_json_sinal(raw: Dictionary) -> Dictionary:
+	var frames_in: Array = raw.get("frames", []) as Array
+	if frames_in.is_empty():
+		return raw
+
+	var first: Dictionary = frames_in[0] as Dictionary
+	# "hands" já é Array no formato esperado; no formato da API é um
+	# Dictionary {"left":..., "right":...}. É o discriminador mais barato.
+	if first.get("hands", []) is Array:
+		return raw
+
+	var frames_out: Array = []
+	for f: Variant in frames_in:
+		var fd: Dictionary = f as Dictionary
+		var t_sec: float = float(fd.get("t", 0.0))
+
+		var pose_flat: Array = fd.get("pose", []) as Array
+		var pose_out: Array = []
+		if not pose_flat.is_empty():
+			pose_out = [{"landmarks": _flat_landmarks_to_canonical(pose_flat)}]
+
+		var hands_in: Dictionary = fd.get("hands", {}) as Dictionary
+		var hands_out: Array = []
+		for side: Array in [["left", "Left"], ["right", "Right"]]:
+			var side_lm: Variant = hands_in.get(side[0], null)
+			if side_lm is Array and not (side_lm as Array).is_empty():
+				hands_out.append({
+					"handedness": side[1],
+					"confidence": 1.0,
+					"landmarks": _flat_landmarks_to_canonical(side_lm as Array),
+				})
+
+		frames_out.append({
+			"timestamp_ms": int(round(t_sec * 1000.0)),
+			"pose": pose_out,
+			"hands": hands_out,
+		})
+
+	return {
+		"video_info": raw.get("video_info", {}),
+		"frames": frames_out,
+	}
+
+
+## Converte uma lista posicional de landmarks "soltos" {x,y,z[,visibility]}
+## no formato {"id","x","y","z","visibility"} que MotionComparator.get_landmark()
+## espera (o "id" é o índice MediaPipe — o array já vem nessa ordem).
+func _flat_landmarks_to_canonical(items: Array) -> Array:
+	var out: Array = []
+	for i: int in range(items.size()):
+		var lm: Dictionary = items[i] as Dictionary
+		out.append({
+			"id": i,
+			"x": lm.get("x", 0.0),
+			"y": lm.get("y", 0.0),
+			"z": lm.get("z", 0.0),
+			"visibility": lm.get("visibility", null),
+		})
+	return out
 
 
 ## O ResourceLoader EXECUTA código ao carregar um .tres que embuta um

@@ -1,61 +1,64 @@
-[gd_scene format=3 uid="uid://bspsiyxtbjgyg"]
+[gd_scene load_steps=3 format=3 uid="uid://bspsiyxtbjgyg"]
 
 [ext_resource type="Script" uid="uid://dm86cqjw2f3yo" path="res://GUI/cameraselector/CameraSelectorDialog.gd" id="1_dialog"]
-[ext_resource type="Theme" uid="uid://bwvd7d8yfgkr1" path="res://themes/libras_soft.tres" id="2_584v2"]
+[ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
 
-[node name="CameraSelectorDialog" type="Window" unique_id=39631213]
+[node name="CameraSelectorDialog" type="Window"]
 oversampling_override = 1.0
 title = "Selecionar câmera"
 initial_position = 2
-size = Vector2i(720, 1000)
+size = Vector2i(880, 1100)
 script = ExtResource("1_dialog")
 
-[node name="Margin" type="MarginContainer" parent="." unique_id=1192451747]
+[node name="Background" type="ColorRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme = ExtResource("2_584v2")
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 32
-theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 32
+color = Color(0.9607843, 0.96862745, 1, 1)
 
-[node name="VBox" type="VBoxContainer" parent="Margin" unique_id=1365107439]
+[node name="Margin" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 48
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 48
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Title" type="Label" parent="Margin/VBox" unique_id=1786362641]
+[node name="Title" type="Label" parent="Margin/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0, 0, 1)
-theme_override_font_sizes/font_size = 48
+theme_type_variation = &"H1"
 text = "Selecionar câmera"
-horizontal_alignment = 1
 
-[node name="Hint" type="Label" parent="Margin/VBox" unique_id=1651069658]
+[node name="Hint" type="Label" parent="Margin/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0, 0, 1)
-theme_override_font_sizes/font_size = 48
-text = "Escolha qual câmera usar para gravar."
-horizontal_alignment = 1
+theme_type_variation = &"BodySm"
+text = "Escolha qual câmera usar para gravar seus sinais."
 autowrap_mode = 3
 
-[node name="Scroll" type="ScrollContainer" parent="Margin/VBox" unique_id=10718247]
+[node name="Scroll" type="ScrollContainer" parent="Margin/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="CameraList" type="VBoxContainer" parent="Margin/VBox/Scroll" unique_id=877269181]
+[node name="CameraList" type="VBoxContainer" parent="Margin/VBox/Scroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 
-[node name="CloseButton" type="Button" parent="Margin/VBox" unique_id=1073122107]
+[node name="CloseButton" type="Button" parent="Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 96)
+custom_minimum_size = Vector2(0, 130)
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_type_variation = &"SecondaryButton"
 text = "Fechar"
-flat = true

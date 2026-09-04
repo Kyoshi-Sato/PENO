@@ -29,14 +29,28 @@ var _sign_stars: Array[int] = []
 @onready var animation_player: AnimationPlayer = $AvatarViewportContainer/AvatarViewport/Avatar/Libra2/Armature_002/AnimationPlayer
 
 @onready var holistic: Node = $HolisticLandmarker
-@onready var btn_back: Button = %Back
-@onready var btn_settings: Button = %Settings
+@onready var back_slot: HBoxContainer = %BackSlot
+@onready var settings_slot: HBoxContainer = %SettingsSlot
+@onready var step_indicator: StepIndicator = %StepIndicator
 @onready var camera_dialog: CameraSelectorDialog = $CameraSelectorDialog
+
+var btn_back: IconButton
+var btn_settings: IconButton
 
 var _last_payload: Dictionary = {}
 
 
 func _ready() -> void:
+	# O chrome (voltar / etapas / câmera) é comum às três etapas e por isso
+	# vive aqui, não dentro de cada estado. Antes eram dois Buttons de texto
+	# posicionados por offsets absolutos ("<" em 32,40,144,152 e "⚙" ancorado
+	# à direita), que se sobrepunham ao conteúdo em telas de outra proporção.
+	btn_back = IconButton.create(HSIcon.Name.BACK, IconButton.Tone.SURFACE)
+	back_slot.add_child(btn_back)
+
+	btn_settings = IconButton.create(HSIcon.Name.SETTINGS, IconButton.Tone.SURFACE)
+	settings_slot.add_child(btn_settings)
+
 	btn_back.pressed.connect(_on_back)
 	btn_settings.pressed.connect(_on_settings_pressed)
 
@@ -207,12 +221,34 @@ func _inject_camera_textures() -> void:
 		recording.set_camera_mirrored(false)
 
 
+## A textura anotada só passa a existir depois do primeiro quadro processado,
+## e a crua depois do primeiro quadro do feed. Injetar uma única vez ao entrar
+## na captura deixava o preview preto durante toda a contagem quando a câmera
+## demorava um pouco para acordar — que é exatamente quando o usuário precisa
+## se ver para se enquadrar. Reinjeta algumas vezes e desiste.
+func _retry_camera_textures() -> void:
+	for delay: float in [0.1, 0.3, 0.8]:
+		await get_tree().create_timer(delay).timeout
+		if not is_instance_valid(self) or not recording.visible:
+			return
+		_inject_camera_textures()
+
+
 # ---------- TRANSIÇÕES DE ESTADO ----------
 
 func _show_only(state_node: Control) -> void:
-	sign_showcase.visible = state_node == sign_showcase
-	recording.visible = state_node == recording
-	feedback.visible = state_node == feedback
+	# Transição em cross-fade em vez de troca seca de `visible`: as três
+	# etapas são o mesmo fluxo contínuo, e o corte instantâneo fazia a tela
+	# parecer que tinha recarregado.
+	var previous: Control = null
+	for s: Control in [sign_showcase, recording, feedback]:
+		if s.visible and s != state_node:
+			previous = s
+	Motion.cross_fade(previous, state_node)
+
+	for s: Control in [sign_showcase, recording, feedback]:
+		if s != state_node and s != previous:
+			s.visible = false
 
 	# Render do overlay do holistic é caro — só ligamos quando o
 	# RecordingState está visível (ele é quem mostra o preview).
@@ -220,8 +256,17 @@ func _show_only(state_node: Control) -> void:
 		holistic.render_overlay_enabled = (state_node == recording)
 
 
+## O chrome tem superfície própria (círculos brancos + pílula de vidro), então
+## não muda de tom entre as etapas: o fundo atrás dele vai de um cenário 3D
+## livre a uma imagem de câmera, e nenhum par de cores de texto sobreviveria
+## aos dois. Só a etapa atual muda.
+func _set_chrome_step(step: int) -> void:
+	step_indicator.current = step
+
+
 func _on_enter_showcase() -> void:
 	_show_only(sign_showcase)
+	_set_chrome_step(0)
 	# Fora da gravação a câmera (feed + readback + inferência) fica pausada:
 	# rodava o tempo todo gastando bateria com resultados descartados.
 	if holistic and holistic.has_method("pause_camera"):
@@ -232,6 +277,7 @@ func _on_enter_showcase() -> void:
 
 func _on_enter_recording() -> void:
 	_show_only(recording)
+	_set_chrome_step(1)
 	if holistic and holistic.has_method("resume_camera"):
 		holistic.resume_camera()
 	# Trocar de câmera no meio de uma captura resetava o pipeline e deixava
@@ -242,10 +288,12 @@ func _on_enter_recording() -> void:
 	_inject_camera_textures()
 	var duration := _compute_capture_duration()
 	recording.begin(lesson, current_sign_index, duration)
+	_retry_camera_textures()
 
 
 func _on_enter_feedback() -> void:
 	_show_only(feedback)
+	_set_chrome_step(2)
 	if holistic and holistic.has_method("pause_camera"):
 		holistic.pause_camera()
 	btn_settings.disabled = false

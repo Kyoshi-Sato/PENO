@@ -102,3 +102,92 @@ func test_tres_wrong_resource_type_rejected() -> void:
 func test_tres_garbage_rejected() -> void:
 	assert_false(svc._is_safe_animation_tres(""))
 	assert_false(svc._is_safe_animation_tres("not a tres at all"))
+
+
+# ---------- normalização do json_sinal (formato compacto da API) ----------
+#
+# A API devolve gabaritos como {"frames": [{"t":.., "pose": [{x,y,z,visibility}],
+# "hands": {"left":.., "right":..}}]} — sem isso, MotionComparatorValidator
+# rejeitava TODO gabarito ("pose com 0 landmarks") e a nota ficava sempre em
+# 0% ("Ops! Não conseguimos avaliar sua gravação"), mesmo com tudo certo.
+
+const API_FLAT_JSON_SINAL := {
+	"frames": [
+		{
+			"t": 0.0,
+			"pose": [{"x": 0.1, "y": 0.2, "z": 0.3, "visibility": 0.9}],
+			"hands": {"left": null, "right": null},
+		},
+		{
+			"t": 0.1,
+			"pose": [{"x": 0.15, "y": 0.2, "z": 0.3, "visibility": 0.9}],
+			"hands": {
+				"left": null,
+				"right": [{"x": 0.5, "y": 0.6, "z": 0.0}],
+			},
+		},
+	],
+}
+
+
+func test_normalize_json_sinal_wraps_pose_landmarks() -> void:
+	var out: Dictionary = svc._normalize_json_sinal(API_FLAT_JSON_SINAL)
+	var frames: Array = out["frames"]
+	var pose: Array = frames[0]["pose"]
+	assert_eq(pose.size(), 1, "pose vira array de 1 grupo (como o HolisticLandmarker exporta)")
+	var landmarks: Array = pose[0]["landmarks"]
+	assert_eq(int(landmarks[0]["id"]), 0)
+	assert_almost_eq(float(landmarks[0]["x"]), 0.1, 0.0001)
+
+
+func test_normalize_json_sinal_converts_hands_dict_to_array() -> void:
+	var out: Dictionary = svc._normalize_json_sinal(API_FLAT_JSON_SINAL)
+	var frames: Array = out["frames"]
+	assert_eq((frames[0]["hands"] as Array).size(), 0, "os dois lados null viram array vazio")
+
+	var hands1: Array = frames[1]["hands"]
+	assert_eq(hands1.size(), 1)
+	assert_eq(String(hands1[0]["handedness"]), "Right")
+	assert_eq(int((hands1[0]["landmarks"] as Array)[0]["id"]), 0)
+
+
+func test_normalize_json_sinal_converts_t_to_timestamp_ms() -> void:
+	var out: Dictionary = svc._normalize_json_sinal(API_FLAT_JSON_SINAL)
+	var frames: Array = out["frames"]
+	assert_eq(int(frames[1]["timestamp_ms"]), 100)
+
+
+func test_normalize_json_sinal_is_noop_on_canonical_shape() -> void:
+	var canonical := {
+		"video_info": {"fps": 30.0},
+		"frames": [
+			{"timestamp_ms": 0, "pose": [{"landmarks": [{"id": 0, "x": 1.0, "y": 2.0, "z": 3.0}]}], "hands": []},
+		],
+	}
+	var out: Dictionary = svc._normalize_json_sinal(canonical)
+	assert_eq(out, canonical)
+
+
+## Ponta a ponta: um json_sinal como a API realmente devolve (fixture
+## capturada de GET /exercicio/1) precisa passar no schema do validator e
+## pontuar perto de 100% contra si mesmo — antes desta normalização, o
+## schema rejeitava e a nota nunca saía do zero.
+func test_real_api_json_sinal_scores_against_itself() -> void:
+	var file := FileAccess.open("res://tests/fixtures/api_letra_a.json", FileAccess.READ)
+	assert_not_null(file, "fixture api_letra_a.json ausente")
+	if file == null:
+		return
+	var raw: Dictionary = JSON.parse_string(file.get_as_text())
+	file.close()
+
+	var normalized: Dictionary = svc._normalize_json_sinal(raw)
+
+	var ValidatorScript := preload("res://Scripts/MotionWrapper.gd")
+	var validator: SignValidator = ValidatorScript.new()
+
+	var schema_error: String = validator.validate_reference_schema(normalized)
+	assert_eq(schema_error, "", "gabarito real deveria passar no schema depois de normalizado")
+
+	var result: Dictionary = validator.validate(normalized, normalized)
+	assert_true(bool(result.get("ok", false)), "validate() deveria ter sucesso: %s" % result.get("error", ""))
+	assert_gt(float(result.get("precision", 0.0)), 0.95, "gabarito comparado com ele mesmo deveria pontuar perto de 100%%")

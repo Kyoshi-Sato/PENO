@@ -1,27 +1,9 @@
-[gd_scene format=3 uid="uid://busofjttw620w"]
+[gd_scene load_steps=3 format=3 uid="uid://busofjttw620w"]
 
 [ext_resource type="Script" uid="uid://bvwxc6fthc42r" path="res://GUI/signshowcase/SignShowcaseState.gd" id="1_showcase"]
+[ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
 
-[sub_resource type="StyleBoxFlat" id="category_pill"]
-content_margin_left = 14.0
-content_margin_top = 6.0
-content_margin_right = 14.0
-content_margin_bottom = 6.0
-bg_color = Color(0.92, 0.94, 1, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-
-[sub_resource type="StyleBoxFlat" id="card_bottom"]
-bg_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 24
-corner_radius_top_right = 24
-shadow_color = Color(0, 0, 0, 0.08)
-shadow_size = 12
-shadow_offset = Vector2(0, -2)
-
-[node name="SignShowcaseState" type="Control" unique_id=1379722570]
+[node name="SignShowcaseState" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -29,116 +11,100 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
+theme = ExtResource("2_theme")
 script = ExtResource("1_showcase")
 
-[node name="TopHeader" type="MarginContainer" parent="." unique_id=1710665845]
+[node name="Layout" type="VBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_top = 24.0
-offset_bottom = 132.0
-grow_horizontal = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_right = 24
-
-[node name="Panel" type="Panel" parent="TopHeader" unique_id=1873783630]
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="TopHeader" unique_id=193722265]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="TopRow" type="HBoxContainer" parent="TopHeader/VBox" unique_id=729929930]
-layout_mode = 2
-
-[node name="LessonIndexLabel" type="Label" parent="TopHeader/VBox/TopRow" unique_id=309708549]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 64
-text = "Lição 03"
-horizontal_alignment = 1
-
-[node name="FavoriteButton" type="Button" parent="TopHeader/VBox/TopRow" unique_id=1344058079]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(36, 36)
-layout_mode = 2
-theme_override_font_sizes/font_size = 22
-toggle_mode = true
-text = "♡"
-flat = true
-
-[node name="SignTitleLabel" type="Label" parent="TopHeader/VBox" unique_id=1298060451]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 64
-text = "Bom dia"
-horizontal_alignment = 1
-
-[node name="CategoryPillContainer" type="HBoxContainer" parent="TopHeader/VBox" unique_id=99709984]
-layout_mode = 2
-alignment = 1
-
-[node name="CategoryPill" type="Label" parent="TopHeader/VBox/CategoryPillContainer" unique_id=2136075188]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 64
-theme_override_styles/normal = SubResource("category_pill")
-text = "Cumprimentos"
-
-[node name="BottomCard" type="PanelContainer" parent="." unique_id=1720881892]
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -240.0
 grow_horizontal = 2
-grow_vertical = 0
-theme_override_styles/panel = SubResource("card_bottom")
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 0
 
-[node name="Margin" type="MarginContainer" parent="BottomCard" unique_id=872425535]
+[node name="AvatarSpace" type="Control" parent="Layout"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 32
+size_flags_vertical = 3
+mouse_filter = 2
 
-[node name="VBox" type="VBoxContainer" parent="BottomCard/Margin" unique_id=1204586883]
+[node name="BottomCard" type="PanelContainer" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Sheet"
+
+[node name="Margin" type="MarginContainer" parent="Layout/BottomCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 48
+
+[node name="VBox" type="VBoxContainer" parent="Layout/BottomCard/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleRow" type="HBoxContainer" parent="Layout/BottomCard/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Text" type="VBoxContainer" parent="Layout/BottomCard/Margin/VBox/TitleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/separation = 4
+
+[node name="LessonIndexLabel" type="Label" parent="Layout/BottomCard/Margin/VBox/TitleRow/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "LIÇÃO 3 · CUMPRIMENTOS · SINAL 1 DE 2"
+
+[node name="SignTitleLabel" type="Label" parent="Layout/BottomCard/Margin/VBox/TitleRow/Text"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"H1"
+text = "Bom dia"
+autowrap_mode = 3
+
+[node name="FavoriteSlot" type="HBoxContainer" parent="Layout/BottomCard/Margin/VBox/TitleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="ObserveRow" type="HBoxContainer" parent="Layout/BottomCard/Margin/VBox"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="ObserveLabel" type="Label" parent="BottomCard/Margin/VBox" unique_id=1549530839]
-layout_mode = 2
-theme_override_font_sizes/font_size = 48
-text = "Observe o gesto"
-horizontal_alignment = 1
-
-[node name="HintLabel" type="Label" parent="BottomCard/Margin/VBox" unique_id=1684217849]
+[node name="HintLabel" type="Label" parent="Layout/BottomCard/Margin/VBox/ObserveRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 48
-text = "Toque em \"Ver devagar\" para
-assistir em câmera lenta."
-horizontal_alignment = 1
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_type_variation = &"BodySm"
+text = "Observe o gesto. Toque em Ver devagar para acompanhar cada etapa."
 autowrap_mode = 3
 
-[node name="Spacer" type="Control" parent="BottomCard/Margin/VBox" unique_id=1407930490]
-custom_minimum_size = Vector2(0, 4)
+[node name="Actions" type="HBoxContainer" parent="Layout/BottomCard/Margin/VBox"]
 layout_mode = 2
+theme_override_constants/separation = 16
 
-[node name="SlowButton" type="Button" parent="BottomCard/Margin/VBox" unique_id=185408363]
+[node name="SlowButton" type="Button" parent="Layout/BottomCard/Margin/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
-theme_override_font_sizes/font_size = 48
-text = "▶  Ver devagar"
-flat = true
+size_flags_horizontal = 3
+theme_type_variation = &"SecondaryButton"
+text = "Ver devagar"
 
-[node name="PracticeButton" type="Button" parent="BottomCard/Margin/VBox" unique_id=1377352837]
+[node name="PracticeButton" type="Button" parent="Layout/BottomCard/Margin/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.35
 theme_type_variation = &"PrimaryButton"
-theme_override_font_sizes/font_size = 48
-text = "📷  Praticar agora"
+text = "Praticar agora"

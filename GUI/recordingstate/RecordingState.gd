@@ -1,23 +1,28 @@
 class_name RecordingState
 extends Control
-## Estado de gravação. Fluxo:
+## Etapa PRATIQUE. Fluxo (inalterado em relação à versão anterior):
 ##
 ##   1. begin(lesson, sign_index, duration) é chamado pela LessonScreen
 ##      quando o estado fica visível. A duration vem do animation_player
 ##      (length da animação + margem) e é repassada pro holistic.
-##   2. Mostra countdown 3 → 2 → 1 → "Vai!" (3 segundos)
+##   2. Mostra countdown 3 → 2 → 1
 ##   3. Emite `request_start_capture(duration_seconds)` para a LessonScreen
 ##      configurar e chamar holistic._begin_capture()
-##   4. Durante a gravação, mostra contador regressivo "Gravando Xs"
+##   4. Durante a gravação, mostra o tempo restante e uma barra de captura
 ##   5. Ao receber on_capture_complete(payload), emite `recording_finished`
 ##
-## Preview de câmera:
-##   A LessonScreen chama bind_camera_textures(raw, annotated) com as
-##   texturas do HolisticLandmarker. O toggle "👁" alterna entre as duas.
-##
-## Cancelamento (botão "Cancelar"):
-##   - Durante countdown: aborta antes de iniciar a captura
-##   - Durante gravação: pede reset do holistic e volta pro Showcase
+## Mudanças de UX:
+##   - A câmera fica visível DESDE a contagem. Antes a tela ficava preta até
+##     a gravação começar, enquanto pedia "Posicione-se em frente à câmera" —
+##     era exatamente no momento de se enquadrar que o usuário não podia se
+##     ver. Um véu semitransparente garante a leitura do texto por cima.
+##   - As dicas de enquadramento aparecem SÓ durante a contagem e somem quando
+##     a gravação começa: durante a captura a câmera não pode competir com
+##     nada. Elas substituem o antigo "checklist" de três itens que ficava
+##     permanentemente em ○ porque nada nunca o atualizava — um placeholder
+##     que dava a impressão de uma validação em tempo real inexistente.
+##   - O escurecimento sobre a câmera some quando a gravação começa, para o
+##     usuário se ver com nitidez máxima no momento que importa.
 
 signal recording_finished(payload: Dictionary)
 signal cancel_requested
@@ -26,21 +31,32 @@ signal request_reset_capture
 
 const COUNTDOWN_SECONDS := 3
 const DEFAULT_RECORDING_SECONDS := 10
+## Véu sobre a câmera durante a contagem. Alto o bastante para o texto branco
+## ficar legível sobre qualquer cena, baixo o bastante para o usuário se ver.
+const SCRIM_ALPHA := 0.4
+
+## Ajustes de enquadramento que dependem só do usuário — nenhum deles
+## pretende ser um resultado de detecção.
+const FRAMING_TIPS: Array[Dictionary] = [
+	{"icon": HSIcon.Name.PROFILE, "text": "Fique a um braço de distância da câmera"},
+	{"icon": HSIcon.Name.HAND, "text": "Mãos e rosto inteiros dentro do quadro"},
+	{"icon": HSIcon.Name.EYE, "text": "Luz de frente para você, não atrás"},
+]
 
 enum Phase { IDLE, COUNTDOWN, RECORDING, DONE }
 
 @onready var lbl_sign: Label = %SignPill
-@onready var ring: PrecisionRing = %PrecisionRing
-@onready var check_position: Control = %CheckPosition
-@onready var check_movement: Control = %CheckMovement
-@onready var check_orientation: Control = %CheckOrientation
 @onready var lbl_hint: Label = %HintLabel
 @onready var lbl_countdown: Label = %CountdownLabel
+@onready var lbl_status: Label = %StatusLabel
 @onready var btn_cancel: Button = %CancelButton
+@onready var tips_card: MarginContainer = %TipsMargin
+@onready var tips_box: VBoxContainer = %Tips
+@onready var capture_bar: ProgressBar = %CaptureBar
+@onready var scrim: ColorRect = %Scrim
+@onready var overlay_slot: HBoxContainer = %OverlaySlot
 
 @onready var camera_preview: TextureRect = %CameraPreview
-@onready var btn_overlay_toggle: Button = %OverlayToggle
-@onready var color_rect: ColorRect = $ColorRect
 
 var _phase: Phase = Phase.IDLE
 var _reference_landmarks: Dictionary = {}
@@ -55,11 +71,18 @@ var _raw_texture: Texture2D = null
 var _annotated_texture: Texture2D = null
 ## true = mostra landmarks por cima; false = só câmera crua.
 var _overlay_enabled: bool = true
+var _btn_overlay: IconButton
 
 
 func _ready() -> void:
 	btn_cancel.pressed.connect(_on_cancel_pressed)
-	btn_overlay_toggle.pressed.connect(_on_overlay_toggle)
+	Motion.attach_press(btn_cancel)
+
+	_btn_overlay = IconButton.create(HSIcon.Name.EYE, IconButton.Tone.ON_DARK)
+	_btn_overlay.pressed.connect(_on_overlay_toggle)
+	overlay_slot.add_child(_btn_overlay)
+
+	_build_tips()
 
 	_tick_timer = Timer.new()
 	_tick_timer.wait_time = 1.0
@@ -67,14 +90,32 @@ func _ready() -> void:
 	add_child(_tick_timer)
 	_tick_timer.timeout.connect(_on_tick)
 
-	camera_preview.visible = false
-	_update_overlay_button_label()
+	capture_bar.visible = false
+	_update_overlay_button()
+
+
+func _build_tips() -> void:
+	for spec: Dictionary in FRAMING_TIPS:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", DS.SPACE_SM)
+		tips_box.add_child(row)
+
+		var glyph := HSIcon.new()
+		glyph.icon = spec["icon"]
+		glyph.color = DS.PRIMARY
+		glyph.custom_minimum_size = Vector2(48, 48)
+		glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(glyph)
+
+		var lbl := Label.new()
+		lbl.theme_type_variation = &"BodySm"
+		lbl.text = String(spec["text"])
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row.add_child(lbl)
 
 
 ## Injeta as texturas de preview vindas do HolisticLandmarker.
-## Chamado pela LessonScreen quando a câmera fica disponível.
-## raw: textura crua da câmera (sem landmarks)
-## annotated: textura com landmarks renderizados
 func bind_camera_textures(raw: Texture2D, annotated: Texture2D) -> void:
 	_raw_texture = raw
 	_annotated_texture = annotated
@@ -105,16 +146,22 @@ func begin(lesson: Lesson, sign_index: int, duration_seconds: float = -1.0) -> v
 		_recording_seconds_f = float(DEFAULT_RECORDING_SECONDS)
 		_recording_seconds = DEFAULT_RECORDING_SECONDS
 
-	lbl_sign.text = _current_sign_name.capitalize()
-	ring.value = 0.0
-	_set_check(check_position, "pending")
-	_set_check(check_movement, "pending")
-	_set_check(check_orientation, "pending")
+	lbl_sign.text = DS.sentence_case(_current_sign_name)
 	lbl_hint.text = "Posicione-se em frente à câmera"
+	lbl_status.text = "Prepare-se"
 
-	# Esconde preview no início — só aparece quando a gravação começar
-	camera_preview.visible = false
-	color_rect.show()
+	capture_bar.visible = false
+	capture_bar.value = 0.0
+	tips_card.visible = true
+	tips_card.modulate.a = 1.0
+	scrim.visible = true
+	scrim.color.a = SCRIM_ALPHA
+
+	# A câmera já entra visível: é durante a contagem que o usuário precisa
+	# se enquadrar. O ColorRect fica atrás como fundo para o caso de a
+	# textura ainda não ter chegado no primeiro quadro.
+	camera_preview.visible = true
+	_apply_preview_texture()
 
 	_start_countdown()
 
@@ -125,8 +172,7 @@ func on_capture_complete(export_data: Dictionary) -> void:
 	_phase = Phase.DONE
 	_tick_timer.stop()
 	lbl_countdown.visible = false
-	color_rect.hide()
-	camera_preview.visible = false
+	capture_bar.visible = false
 
 	var payload := {
 		"sign_id": _current_sign_name,
@@ -143,21 +189,39 @@ func _start_countdown() -> void:
 	_phase = Phase.COUNTDOWN
 	_ticks_remaining = COUNTDOWN_SECONDS
 	lbl_countdown.visible = true
-	color_rect.show()
-	lbl_countdown.text = str(_ticks_remaining)
+	_set_countdown(str(_ticks_remaining))
 	_tick_timer.start()
 
 
 func _start_recording() -> void:
 	_phase = Phase.RECORDING
 	_ticks_remaining = _recording_seconds
-	lbl_countdown.text = "Vai!"
+	lbl_countdown.visible = false
+	lbl_status.text = "Gravando"
 	lbl_hint.text = "Faça o sinal agora"
-	# Câmera fica visível durante a gravação (cobre o ColorRect preto)
-	camera_preview.visible = true
-	color_rect.hide()
+
+	# Câmera limpa: dicas, véu e numeral saem de cena juntos.
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(tips_card, "modulate:a", 0.0, DS.DUR_FAST)
+	t.tween_property(scrim, "color:a", 0.0, DS.DUR_FAST)
+	t.chain().tween_callback(func() -> void:
+		tips_card.visible = false
+		scrim.visible = false)
+
+	capture_bar.visible = true
+	capture_bar.value = 0.0
+	Motion.fill_bar(capture_bar, 1.0, _recording_seconds_f)
+
 	_apply_preview_texture()
 	request_start_capture.emit(_recording_seconds_f)
+
+
+func _set_countdown(text: String) -> void:
+	lbl_countdown.text = text
+	# Cada número entra com um pulso: sem isso a contagem parece travada,
+	# porque só o glifo muda numa tela sem mais nenhum movimento.
+	Motion.pulse(lbl_countdown, 1.18)
 
 
 func _on_tick() -> void:
@@ -166,14 +230,15 @@ func _on_tick() -> void:
 	match _phase:
 		Phase.COUNTDOWN:
 			if _ticks_remaining > 0:
-				lbl_countdown.text = str(_ticks_remaining)
+				_set_countdown(str(_ticks_remaining))
 			else:
 				_start_recording()
 		Phase.RECORDING:
 			if _ticks_remaining > 0:
-				lbl_countdown.text = "Gravando %ds" % _ticks_remaining
+				lbl_status.text = "Gravando · %ds" % _ticks_remaining
 			else:
-				lbl_countdown.text = "Processando..."
+				lbl_status.text = "Analisando seu sinal…"
+				lbl_hint.text = "Só um instante"
 				_tick_timer.stop()
 		_:
 			_tick_timer.stop()
@@ -183,17 +248,18 @@ func _on_tick() -> void:
 
 func _on_overlay_toggle() -> void:
 	_overlay_enabled = not _overlay_enabled
-	_update_overlay_button_label()
+	_update_overlay_button()
 	_apply_preview_texture()
 
 
-func _update_overlay_button_label() -> void:
-	if btn_overlay_toggle == null:
+func _update_overlay_button() -> void:
+	if _btn_overlay == null:
 		return
-	if _overlay_enabled:
-		btn_overlay_toggle.text = "👁  Pontos: ON"
-	else:
-		btn_overlay_toggle.text = "👁  Pontos: OFF"
+	# O próprio ícone diz o estado (olho aberto / olho cortado); o rótulo
+	# "👁 Pontos: ON" virava um botão de texto largo em cima da câmera.
+	_btn_overlay.glyph_icon = HSIcon.Name.EYE if _overlay_enabled else HSIcon.Name.EYE_OFF
+	_btn_overlay.tooltip_text = "Pontos de detecção: %s" % (
+		"visíveis" if _overlay_enabled else "ocultos")
 
 
 func _apply_preview_texture() -> void:
@@ -205,37 +271,12 @@ func _apply_preview_texture() -> void:
 		camera_preview.texture = _raw_texture
 
 
-# ---------- CHECKLIST ----------
-
-## status: "pending" | "ok" | "warn" | "fail"
-func _set_check(check_node: Control, status: String) -> void:
-	if check_node == null:
-		return
-	var icon: Label = check_node.get_node_or_null("HBox/Icon")
-	if icon == null:
-		return
-	match status:
-		"ok":
-			icon.text = "✓"
-			icon.modulate = Color(0.18, 0.78, 0.45)
-		"warn":
-			icon.text = "!"
-			icon.modulate = Color(0.95, 0.65, 0.15)
-		"fail":
-			icon.text = "✕"
-			icon.modulate = Color(0.85, 0.25, 0.25)
-		_:
-			icon.text = "○"
-			icon.modulate = Color(0.65, 0.68, 0.72)
-
-
 # ---------- CANCELAMENTO ----------
 
 func _on_cancel_pressed() -> void:
 	_tick_timer.stop()
 	lbl_countdown.visible = false
-	color_rect.hide()
-	camera_preview.visible = false
+	capture_bar.visible = false
 
 	if _phase == Phase.RECORDING:
 		request_reset_capture.emit()

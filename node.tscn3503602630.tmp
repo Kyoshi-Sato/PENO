@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://b6g6chemks3it"]
-
-[ext_resource type="Script" uid="uid://dxpcwg0wy8vfg" path="res://Scripts/Themecreator.gd" id="1_sy5k4"]
-
-[node name="Node" type="Node" unique_id=1451427893]
-script = ExtResource("1_sy5k4")

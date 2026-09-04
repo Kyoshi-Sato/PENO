@@ -1,41 +1,9 @@
-[gd_scene format=3 uid="uid://ow4wtfh0h7bc"]
+[gd_scene load_steps=3 format=3 uid="uid://ow4wtfh0h7bc"]
 
 [ext_resource type="Script" uid="uid://cbp0yqnfeohb3" path="res://GUI/recordingstate/RecordingState.gd" id="1_recording"]
-[ext_resource type="Script" uid="uid://bga24jwnii2q" path="res://Scripts/PrecisionRing.gd" id="2_ring"]
+[ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
 
-[sub_resource type="StyleBoxFlat" id="sign_pill"]
-content_margin_left = 32.0
-content_margin_top = 16.0
-content_margin_right = 32.0
-content_margin_bottom = 16.0
-bg_color = Color(0.92, 0.94, 1, 0.95)
-corner_radius_top_left = 36
-corner_radius_top_right = 36
-corner_radius_bottom_right = 36
-corner_radius_bottom_left = 36
-
-[sub_resource type="StyleBoxFlat" id="check_card"]
-content_margin_left = 24.0
-content_margin_top = 16.0
-content_margin_right = 24.0
-content_margin_bottom = 16.0
-bg_color = Color(1, 1, 1, 0.95)
-corner_radius_top_left = 28
-corner_radius_top_right = 28
-corner_radius_bottom_right = 28
-corner_radius_bottom_left = 28
-shadow_color = Color(0, 0, 0, 0.06)
-shadow_size = 12
-
-[sub_resource type="StyleBoxFlat" id="card_bottom"]
-bg_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 48
-corner_radius_top_right = 48
-shadow_color = Color(0, 0, 0, 0.08)
-shadow_size = 24
-shadow_offset = Vector2(0, -4)
-
-[node name="RecordingState" type="Control" unique_id=1553662868]
+[node name="RecordingState" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -43,20 +11,20 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
+theme = ExtResource("2_theme")
 script = ExtResource("1_recording")
 
-[node name="ColorRect" type="ColorRect" parent="." unique_id=1806587408]
+[node name="ColorRect" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 1)
+color = Color(0.078431375, 0.08627451, 0.16862746, 1)
 
-[node name="CameraPreview" type="TextureRect" parent="." unique_id=756964864]
+[node name="CameraPreview" type="TextureRect" parent="."]
 unique_name_in_owner = true
-visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -66,50 +34,47 @@ grow_vertical = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="TopPill" type="HBoxContainer" parent="." unique_id=1690859038]
+[node name="Scrim" type="ColorRect" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -200.0
-offset_top = 60.0
-offset_right = 200.0
-offset_bottom = 140.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
-alignment = 1
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.05, 0.06, 0.13, 0.4)
 
-[node name="SignPill" type="Label" parent="TopPill" unique_id=795749006]
+[node name="TopBar" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 216.0
+grow_horizontal = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_right = 40
+
+[node name="Row" type="HBoxContainer" parent="TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="SignPill" type="Label" parent="TopBar/Row"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 36
-theme_override_styles/normal = SubResource("sign_pill")
+size_flags_vertical = 4
+theme_type_variation = &"PillOnDark"
 text = "Bom dia"
 
-[node name="OverlayToggle" type="Button" parent="." unique_id=1866754541]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -300.0
-offset_top = 60.0
-offset_right = -32.0
-offset_bottom = 152.0
-grow_horizontal = 0
-theme_override_font_sizes/font_size = 26
-text = "👁  Pontos: ON"
+[node name="Spacer" type="Control" parent="TopBar/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
 
-[node name="PrecisionRing" type="Control" parent="." unique_id=1507419791]
+[node name="OverlaySlot" type="HBoxContainer" parent="TopBar/Row"]
 unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 0
-offset_left = 48.0
-offset_top = 180.0
-offset_right = 248.0
-offset_bottom = 380.0
-script = ExtResource("2_ring")
+layout_mode = 2
+size_flags_vertical = 4
 
-[node name="CountdownLabel" type="Label" parent="." unique_id=762071812]
+[node name="Center" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 8
@@ -117,146 +82,95 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -200.0
-offset_right = 300.0
-offset_bottom = 200.0
+offset_left = -460.0
+offset_top = -400.0
+offset_right = 460.0
+offset_bottom = 120.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.5)
-theme_override_constants/outline_size = 16
-theme_override_font_sizes/font_size = 220
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="CountdownLabel" type="Label" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Countdown"
 text = "3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="CheckList" type="VBoxContainer" parent="." unique_id=1121069810]
+[node name="StatusLabel" type="Label" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"OnPrimary"
+text = "Prepare-se"
+horizontal_alignment = 1
+
+[node name="Layout" type="VBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 11
-anchor_left = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -440.0
-offset_top = 200.0
-offset_right = -32.0
-offset_bottom = 700.0
-grow_horizontal = 0
-grow_vertical = 2
-theme_override_constants/separation = 24
-
-[node name="CheckPosition" type="PanelContainer" parent="CheckList" unique_id=1458516273]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_styles/panel = SubResource("check_card")
-
-[node name="HBox" type="HBoxContainer" parent="CheckList/CheckPosition" unique_id=212100114]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="Bullet" type="Label" parent="CheckList/CheckPosition/HBox" unique_id=754811393]
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "●"
-
-[node name="Text" type="Label" parent="CheckList/CheckPosition/HBox" unique_id=1691706340]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 24
-text = "Posição da mão
-correta"
-
-[node name="Icon" type="Label" parent="CheckList/CheckPosition/HBox" unique_id=1375535770]
-layout_mode = 2
-theme_override_font_sizes/font_size = 36
-text = "○"
-
-[node name="CheckMovement" type="PanelContainer" parent="CheckList" unique_id=271943504]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_styles/panel = SubResource("check_card")
-
-[node name="HBox" type="HBoxContainer" parent="CheckList/CheckMovement" unique_id=1378593126]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="Bullet" type="Label" parent="CheckList/CheckMovement/HBox" unique_id=1194147855]
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "●"
-
-[node name="Text" type="Label" parent="CheckList/CheckMovement/HBox" unique_id=947249389]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 24
-text = "Movimento
-correto"
-
-[node name="Icon" type="Label" parent="CheckList/CheckMovement/HBox" unique_id=1036295106]
-layout_mode = 2
-theme_override_font_sizes/font_size = 36
-text = "○"
-
-[node name="CheckOrientation" type="PanelContainer" parent="CheckList" unique_id=56324799]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_styles/panel = SubResource("check_card")
-
-[node name="HBox" type="HBoxContainer" parent="CheckList/CheckOrientation" unique_id=1581585262]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="Bullet" type="Label" parent="CheckList/CheckOrientation/HBox" unique_id=887176106]
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "●"
-
-[node name="Text" type="Label" parent="CheckList/CheckOrientation/HBox" unique_id=59143804]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 24
-text = "Orientação
-correta"
-
-[node name="Icon" type="Label" parent="CheckList/CheckOrientation/HBox" unique_id=1481288556]
-layout_mode = 2
-theme_override_font_sizes/font_size = 36
-text = "○"
-
-[node name="BottomCard" type="PanelContainer" parent="." unique_id=219303556]
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_top = -320.0
 grow_horizontal = 2
-grow_vertical = 0
-theme_override_styles/panel = SubResource("card_bottom")
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 0
 
-[node name="Margin" type="MarginContainer" parent="BottomCard" unique_id=1413049604]
+[node name="Spacer" type="Control" parent="Layout"]
 layout_mode = 2
-theme_override_constants/margin_left = 48
-theme_override_constants/margin_top = 40
-theme_override_constants/margin_right = 48
-theme_override_constants/margin_bottom = 56
+size_flags_vertical = 3
+mouse_filter = 2
 
-[node name="VBox" type="VBoxContainer" parent="BottomCard/Margin" unique_id=1949818679]
-layout_mode = 2
-theme_override_constants/separation = 32
-
-[node name="HintLabel" type="Label" parent="BottomCard/Margin/VBox" unique_id=862204310]
+[node name="TipsMargin" type="MarginContainer" parent="Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 60
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 24
+
+[node name="TipsCard" type="PanelContainer" parent="Layout/TipsMargin"]
+layout_mode = 2
+theme_type_variation = &"Glass"
+
+[node name="Tips" type="VBoxContainer" parent="Layout/TipsMargin/TipsCard"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="BottomCard" type="PanelContainer" parent="Layout"]
+layout_mode = 2
+theme_type_variation = &"Sheet"
+
+[node name="Margin" type="MarginContainer" parent="Layout/BottomCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 48
+
+[node name="VBox" type="VBoxContainer" parent="Layout/BottomCard/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="HintLabel" type="Label" parent="Layout/BottomCard/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"H3"
 text = "Posicione-se em frente à câmera"
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="CancelButton" type="Button" parent="BottomCard/Margin/VBox" unique_id=1388451679]
+[node name="CaptureBar" type="ProgressBar" parent="Layout/BottomCard/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 112)
+custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-theme_override_font_sizes/font_size = 60
+max_value = 1.0
+show_percentage = false
+
+[node name="CancelButton" type="Button" parent="Layout/BottomCard/Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 130)
+layout_mode = 2
+theme_type_variation = &"GhostButton"
 text = "Cancelar"
-flat = true

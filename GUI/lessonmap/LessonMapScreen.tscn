@@ -1,73 +1,110 @@
-[gd_scene format=3 uid="uid://ckf17j3xplukh"]
+[gd_scene load_steps=4 format=3 uid="uid://ckf17j3xplukh"]
 
-[ext_resource type="Theme" uid="uid://bwvd7d8yfgkr1" path="res://themes/libras_soft.tres" id="1_14dkm"]
-[ext_resource type="Script" uid="uid://tlwllo0x8jtl" path="res://GUI/lessonmap/LessonMapScreen.gd" id="1_map"]
+[ext_resource type="Theme" path="res://themes/handsign.tres" id="1_theme"]
+[ext_resource type="Script" uid="uid://tlwllo0x8jtl" path="res://GUI/lessonmap/LessonMapScreen.gd" id="2_map"]
+[ext_resource type="Script" path="res://GUI/components/BottomNav.gd" id="3_nav"]
 
-[node name="LessonMapScreen" type="Control" unique_id=2114185802]
+[node name="LessonMapScreen" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme = ExtResource("1_14dkm")
-script = ExtResource("1_map")
+theme = ExtResource("1_theme")
+script = ExtResource("2_map")
 
-[node name="Background" type="ColorRect" parent="." unique_id=2007037293]
+[node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.9170572, 0.9326046, 0.97014505, 1)
+color = Color(0.9607843, 0.96862745, 1, 1)
 
-[node name="Margin" type="MarginContainer" parent="." unique_id=647808480]
+[node name="Root" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 24
+theme_override_constants/separation = 0
 
-[node name="VBox" type="VBoxContainer" parent="Margin" unique_id=1415634880]
+[node name="HeaderArea" type="MarginContainer" parent="Root"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 72
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 16
 
-[node name="Header" type="HBoxContainer" parent="Margin/VBox" unique_id=450960417]
+[node name="Stack" type="VBoxContainer" parent="Root/HeaderArea"]
 layout_mode = 2
+theme_override_constants/separation = 24
 
-[node name="BackButton" type="Button" parent="Margin/VBox/Header" unique_id=485076401]
+[node name="Header" type="HBoxContainer" parent="Root/HeaderArea/Stack"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(80, 60)
 layout_mode = 2
-theme_override_font_sizes/font_size = 36
-text = "<"
 
-[node name="TitleLabel" type="Label" parent="Margin/VBox/Header" unique_id=1759078785]
+[node name="SummaryCard" type="PanelContainer" parent="Root/HeaderArea/Stack"]
 unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CardFlat"
+
+[node name="VBox" type="VBoxContainer" parent="Root/HeaderArea/Stack/SummaryCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Row" type="HBoxContainer" parent="Root/HeaderArea/Stack/SummaryCard/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Root/HeaderArea/Stack/SummaryCard/VBox/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 72
-text = "Continuar aprendendo"
-horizontal_alignment = 1
-vertical_alignment = 1
+theme_type_variation = &"H3"
+text = "Progresso da trilha"
 
-[node name="Spacer" type="Control" parent="Margin/VBox/Header" unique_id=591984543]
-custom_minimum_size = Vector2(80, 60)
+[node name="PercentLabel" type="Label" parent="Root/HeaderArea/Stack/SummaryCard/VBox/Row"]
+unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"H3"
+text = "0%"
 
-[node name="ScrollContainer" type="ScrollContainer" parent="Margin/VBox" unique_id=890899697]
+[node name="Bar" type="ProgressBar" parent="Root/HeaderArea/Stack/SummaryCard/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+max_value = 1.0
+show_percentage = false
+
+[node name="CaptionLabel" type="Label" parent="Root/HeaderArea/Stack/SummaryCard/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = ""
+
+[node name="Scroll" type="ScrollContainer" parent="Root"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="PathContainer" type="VBoxContainer" parent="Margin/VBox/ScrollContainer" unique_id=510461633]
+[node name="Margin" type="MarginContainer" parent="Root/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 32
+
+[node name="PathContainer" type="VBoxContainer" parent="Root/Scroll/Margin"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 24
+theme_override_constants/separation = 0
+
+[node name="Nav" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("3_nav")
