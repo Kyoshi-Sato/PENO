@@ -123,16 +123,22 @@ func _build() -> void:
 	_chevron.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(_chevron)
 
-	# O botão cobre o card inteiro e fica por baixo do conteúdo: assim a área
-	# de toque é o card todo (~210px de altura) sem que o texto vire filho de
-	# um Button, que aplicaria a cor de fonte do botão em tudo.
+	# O botão cobre o card inteiro para que a área de toque seja o card todo
+	# (~210 px de altura), sem que o texto vire filho de um Button.
+	#
+	# Ele é o ÚLTIMO filho, ou seja, fica À FRENTE do conteúdo. O Godot
+	# entrega o evento de mouse ao controle mais à frente sob o ponto, e
+	# containers e Labels usam MOUSE_FILTER_STOP por padrão — com o botão
+	# atrás, como estava antes, todo clique morria no VBox do texto e o card
+	# inteiro ficava inerte. Na frente ele captura tudo, e como a variação
+	# `NavButton` não tem stylebox em nenhum estado, ele não desenha nada por
+	# cima. Qualquer conteúdo acrescentado depois continua coberto de graça.
 	_button = Button.new()
 	_button.theme_type_variation = &"NavButton"
 	_button.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_button.focus_mode = Control.FOCUS_NONE
 	_button.pressed.connect(_on_pressed)
 	_card.add_child(_button)
-	_card.move_child(_button, 0)
 
 	_apply_state()
 

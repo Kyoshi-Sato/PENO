@@ -1,11 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://busbb8aswp80w"]
+[gd_scene format=3 uid="uid://busbb8aswp80w"]
 
 [ext_resource type="Script" uid="uid://dwgrv10wlxww4" path="res://GUI/feedback/FeedbackState.gd" id="1_feedback"]
-[ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
+[ext_resource type="Theme" uid="uid://dxghb8dsnj4fw" path="res://themes/handsign.tres" id="2_theme"]
 [ext_resource type="Script" uid="uid://bga24jwnii2q" path="res://Scripts/PrecisionRing.gd" id="3_ring"]
-[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
+[ext_resource type="Script" uid="uid://c7f7jaumm0owa" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
 
-[node name="FeedbackState" type="Control"]
+[node name="FeedbackState" type="Control" unique_id=1041563451]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -16,7 +16,7 @@ mouse_filter = 1
 theme = ExtResource("2_theme")
 script = ExtResource("1_feedback")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=146079716]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -25,7 +25,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.9607843, 0.96862745, 1, 1)
 
-[node name="Scroll" type="ScrollContainer" parent="."]
+[node name="Scroll" type="ScrollContainer" parent="." unique_id=884247569]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -34,29 +34,28 @@ grow_horizontal = 2
 grow_vertical = 2
 horizontal_scroll_mode = 0
 
-[node name="Margin" type="MarginContainer" parent="Scroll"]
+[node name="Margin" type="MarginContainer" parent="Scroll" unique_id=1847883248]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 40
 theme_override_constants/margin_top = 232
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 56
-
 script = ExtResource("99_frame")
 
-[node name="VBox" type="VBoxContainer" parent="Scroll/Margin"]
+[node name="VBox" type="VBoxContainer" parent="Scroll/Margin" unique_id=2068065773]
 layout_mode = 2
 theme_override_constants/separation = 32
 
-[node name="ResultCard" type="PanelContainer" parent="Scroll/Margin/VBox"]
+[node name="ResultCard" type="PanelContainer" parent="Scroll/Margin/VBox" unique_id=1896185701]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="Inner" type="VBoxContainer" parent="Scroll/Margin/VBox/ResultCard"]
+[node name="Inner" type="VBoxContainer" parent="Scroll/Margin/VBox/ResultCard" unique_id=944870735]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="TitleLabel" type="Label" parent="Scroll/Margin/VBox/ResultCard/Inner"]
+[node name="TitleLabel" type="Label" parent="Scroll/Margin/VBox/ResultCard/Inner" unique_id=1788540703]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"H1"
@@ -64,7 +63,7 @@ text = "Analisando…"
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="SubtitleLabel" type="Label" parent="Scroll/Margin/VBox/ResultCard/Inner"]
+[node name="SubtitleLabel" type="Label" parent="Scroll/Margin/VBox/ResultCard/Inner" unique_id=1847458762]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"BodyMuted"
@@ -72,94 +71,92 @@ text = "Avaliando sua execução do sinal."
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="RingRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ResultCard/Inner"]
+[node name="RingRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ResultCard/Inner" unique_id=1929020997]
 layout_mode = 2
 alignment = 1
 
-[node name="PrecisionRing" type="Control" parent="Scroll/Margin/VBox/ResultCard/Inner/RingRow"]
+[node name="PrecisionRing" type="Control" parent="Scroll/Margin/VBox/ResultCard/Inner/RingRow" unique_id=543316012]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(300, 300)
 layout_mode = 2
 script = ExtResource("3_ring")
 
-[node name="StarsRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ResultCard/Inner"]
+[node name="StarsRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ResultCard/Inner" unique_id=1203251595]
 unique_name_in_owner = true
 layout_mode = 2
 alignment = 1
 
-[node name="RewardRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ResultCard/Inner"]
+[node name="RewardRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ResultCard/Inner" unique_id=909969308]
 unique_name_in_owner = true
 layout_mode = 2
 alignment = 1
 
-[node name="BreakdownTitle" type="Label" parent="Scroll/Margin/VBox"]
+[node name="BreakdownTitle" type="Label" parent="Scroll/Margin/VBox" unique_id=1012211832]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"H2"
 text = "O que analisamos"
 
-[node name="Breakdown" type="VBoxContainer" parent="Scroll/Margin/VBox"]
+[node name="Breakdown" type="VBoxContainer" parent="Scroll/Margin/VBox" unique_id=648312574]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="MetricsRow" type="HBoxContainer" parent="Scroll/Margin/VBox"]
+[node name="MetricsRow" type="HBoxContainer" parent="Scroll/Margin/VBox" unique_id=794974937]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="ModuleCard" type="PanelContainer" parent="Scroll/Margin/VBox"]
+[node name="ModuleCard" type="PanelContainer" parent="Scroll/Margin/VBox" unique_id=1684920985]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CardFlat"
 
-[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/ModuleCard"]
+[node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/ModuleCard" unique_id=1916312474]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="HeaderRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ModuleCard/VBox"]
+[node name="HeaderRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ModuleCard/VBox" unique_id=852184432]
 layout_mode = 2
 
-[node name="ModuleNameLabel" type="Label" parent="Scroll/Margin/VBox/ModuleCard/VBox/HeaderRow"]
+[node name="ModuleNameLabel" type="Label" parent="Scroll/Margin/VBox/ModuleCard/VBox/HeaderRow" unique_id=34911431]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"H3"
 text = "Módulo"
 
-[node name="ModuleProgressText" type="Label" parent="Scroll/Margin/VBox/ModuleCard/VBox/HeaderRow"]
+[node name="ModuleProgressText" type="Label" parent="Scroll/Margin/VBox/ModuleCard/VBox/HeaderRow" unique_id=745906310]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 4
 theme_type_variation = &"Caption"
-text = ""
 
-[node name="ModuleProgress" type="ProgressBar" parent="Scroll/Margin/VBox/ModuleCard/VBox"]
+[node name="ModuleProgress" type="ProgressBar" parent="Scroll/Margin/VBox/ModuleCard/VBox" unique_id=170138617]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 max_value = 1.0
 show_percentage = false
 
-[node name="Actions" type="VBoxContainer" parent="Scroll/Margin/VBox"]
+[node name="Actions" type="VBoxContainer" parent="Scroll/Margin/VBox" unique_id=741931143]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="NextLessonButton" type="Button" parent="Scroll/Margin/VBox/Actions"]
+[node name="NextLessonButton" type="Button" parent="Scroll/Margin/VBox/Actions" unique_id=1406700107]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
 theme_type_variation = &"PrimaryButton"
 text = "Próximo sinal"
 
-[node name="RetryButton" type="Button" parent="Scroll/Margin/VBox/Actions"]
+[node name="RetryButton" type="Button" parent="Scroll/Margin/VBox/Actions" unique_id=957758672]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 130)
 layout_mode = 2
 theme_type_variation = &"SecondaryButton"
 text = "Tentar novamente"
 
-[node name="BackToMapButton" type="Button" parent="Scroll/Margin/VBox/Actions"]
+[node name="BackToMapButton" type="Button" parent="Scroll/Margin/VBox/Actions" unique_id=673583442]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"GhostButton"
