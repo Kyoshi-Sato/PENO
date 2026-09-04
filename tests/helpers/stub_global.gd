@@ -9,3 +9,9 @@ func _load_progress() -> void:
 
 func _save_progress() -> void:
 	pass
+
+
+## `erase_all_data()` confere o resultado relendo o arquivo. Sem este override
+## o stub leria o user://progress.json real — justamente o que ele evita.
+func _saved_progress_is_empty() -> bool:
+	return _progress.is_empty()

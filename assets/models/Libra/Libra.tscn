@@ -13,6 +13,7 @@
 [ext_resource type="Texture2D" uid="uid://cnpqp8yqbvx3r" path="res://assets/models/Libra/LibraTextures/Libra2__09.png" id="16_a4ars"]
 [ext_resource type="Texture2D" uid="uid://cn28g187weo5s" path="res://assets/models/Libra/LibraTextures/Libra2__16.png" id="17_1e0n6"]
 [ext_resource type="Texture2D" uid="uid://dtl1pvwjjxuy5" path="res://assets/models/Libra/LibraTextures/_04.002.png" id="18_a86eu"]
+[ext_resource type="Script" uid="uid://dtyujvrfvdovw" path="res://Scripts/BoneScaleLock.gd" id="19_bslck"]
 
 [sub_resource type="GDScript" id="GDScript_ipa65"]
 script/source = "extends Node3D
@@ -944,25 +945,9 @@ _data = {
 &"Idle": SubResource("Animation_yem8c")
 }
 
-[sub_resource type="Gradient" id="Gradient_ipa65"]
-colors = PackedColorArray(0.9999997, 0.5862566, 0.22393507, 1, 0.54450524, 0.28027576, 0.14943331, 1)
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_ipa65"]
-noise_type = 2
-frequency = 0.0532
-fractal_octaves = 1
-cellular_jitter = 180.0
-cellular_return_type = 0
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_yem8c"]
-width = 2048
-height = 2048
-noise = SubResource("FastNoiseLite_ipa65")
-color_ramp = SubResource("Gradient_ipa65")
-
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bhwmm"]
 shading_mode = 0
-albedo_texture = SubResource("NoiseTexture2D_yem8c")
+albedo_color = Color(0.8786259, 0.8613188, 0.692287, 1)
 
 [sub_resource type="QuadMesh" id="QuadMesh_qrfwa"]
 material = SubResource("StandardMaterial3D_bhwmm")
@@ -1426,6 +1411,10 @@ blend_shapes/Fcl_HA_Short_Low = 0.0
 [node name="Hair" type="MeshInstance3D" parent="Libra2/Armature_002/Skeleton3D" unique_id=254924570]
 mesh = SubResource("ArrayMesh_bjht3")
 skin = SubResource("Skin_a6wlo")
+
+[node name="BoneScaleLock" type="SkeletonModifier3D" parent="Libra2/Armature_002/Skeleton3D" unique_id=913377001]
+script = ExtResource("19_bslck")
+locked_bones = PackedStringArray("BnPescoco", "BnCabeca")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Libra2/Armature_002" unique_id=908892107]
 root_node = NodePath("../..")

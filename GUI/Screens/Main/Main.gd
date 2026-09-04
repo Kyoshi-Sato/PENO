@@ -30,6 +30,7 @@ extends Control
 @onready var btn_see_all: Button = %SeeAll
 @onready var path_container: VBoxContainer = %PathContainer
 @onready var nav: BottomNav = %Nav
+@onready var settings_dialog: SettingsDialog = $SettingsDialog
 
 var _catalog: Array = []
 ## Lição que o botão principal abre: a primeira desbloqueada e não concluída.
@@ -49,6 +50,8 @@ func _ready() -> void:
 	mascot.texture = avatar_viewport.get_texture()
 	_hide_avatar_backdrop()
 
+	settings_dialog.data_erased.connect(_on_data_erased)
+
 	btn_hero_cta.pressed.connect(_on_practice)
 	btn_see_all.pressed.connect(_on_see_all)
 	nav.tab_selected.connect(_on_nav)
@@ -66,11 +69,15 @@ func _ready() -> void:
 # ═══════════════════════════════════════════════════════════
 
 func _build_header() -> void:
-	lbl_hello.text = "%s · Nível %d" % [_greeting(), Global.get_level()]
+	_update_greeting()
 
 	var settings := IconButton.create(HSIcon.Name.SETTINGS, IconButton.Tone.SURFACE)
 	settings.pressed.connect(_on_settings)
 	header_actions.add_child(settings)
+
+
+func _update_greeting() -> void:
+	lbl_hello.text = "%s · Nível %d" % [_greeting(), Global.get_level()]
 
 
 ## A cena do Libra traz um quad de cenário atrás do personagem. Ele faz
@@ -259,9 +266,22 @@ func _on_see_all() -> void:
 
 
 func _on_settings() -> void:
-	# A tela de configurações ainda não existe; a seleção de câmera, que é a
-	# única preferência real do app, mora na tela de lição.
-	pass
+	# A seleção de câmera, a outra preferência do app, mora na engrenagem da
+	# tela de lição: é lá que ela tem efeito visível.
+	if !settings_dialog.is_visible():
+		settings_dialog.popup_centered()
+	else:
+		settings_dialog.hide()
+
+## A Home inteira é derivada do progresso, então apagar os dados invalida tudo
+## o que está na tela: saudação com o nível, chips de XP e ofensiva, card
+## "continue de onde parou" e os cadeados da trilha.
+func _on_data_erased() -> void:
+	_update_greeting()
+	_build_chips()
+	_resolve_next_lesson()
+	_update_hero()
+	_build_trail()
 
 
 func _on_nav(id: StringName) -> void:

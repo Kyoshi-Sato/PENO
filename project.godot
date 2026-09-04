@@ -18,7 +18,8 @@ config/name="Librarefa"
 run/main_scene="res://GUI/splash/SplashScreen.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/bg_color=Color(0.14117648, 0.23529412, 0.4745098, 1)
-boot_splash/image="uid://m2o05wogtxqt"
+boot_splash/show_image=false
+boot_splash/stretch_mode=4
 config/icon="uid://dco228gx5m07v"
 
 [audio]

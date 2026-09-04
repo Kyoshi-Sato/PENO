@@ -19,7 +19,7 @@ enum Name {
 	HOME, LESSONS, CAMERA, PROGRESS, PROFILE,
 	SETTINGS, BACK, FORWARD, CLOSE,
 	# ação
-	PLAY, PLAY_SLOW, REFRESH, EYE, EYE_OFF,
+	PLAY, PLAY_SLOW, REFRESH, EYE, EYE_OFF, TRASH,
 	# estado
 	CHECK, CHECK_CIRCLE, CROSS, LOCK, TARGET, CLOCK,
 	# gamificação
@@ -214,6 +214,19 @@ func _draw_icon() -> void:
 		Name.CLOSE:
 			draw_line(Vector2(6.2, 6.2), Vector2(17.8, 17.8), color, weight, true)
 			draw_line(Vector2(17.8, 6.2), Vector2(6.2, 17.8), color, weight, true)
+
+		Name.TRASH:
+			# Alça, tampa e cesto ligeiramente cônico. A tampa é o traço mais
+			# grosso do ícone: é o que o lê como lixeira em tamanho pequeno.
+			_stroke(PackedVector2Array([
+				Vector2(9.4, 6.4), Vector2(9.4, 3.8), Vector2(14.6, 3.8),
+				Vector2(14.6, 6.4)]))
+			draw_line(Vector2(4.2, 6.4), Vector2(19.8, 6.4), color, weight * 1.3, true)
+			_stroke(PackedVector2Array([
+				Vector2(6.4, 6.4), Vector2(7.4, 20.4), Vector2(16.6, 20.4),
+				Vector2(17.6, 6.4)]))
+			for x: float in [10.2, 13.8]:
+				draw_line(Vector2(x, 10.0), Vector2(x, 17.2), color, weight * 0.8, true)
 
 		Name.PLAY:
 			draw_colored_polygon(PackedVector2Array([

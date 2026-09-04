@@ -30,14 +30,34 @@ func _init() -> void:
 	_build_containers(theme)
 	_build_scrollbars(theme)
 
+	# Lido ANTES de gravar: o arquivo prestes a ser sobrescrito é a única
+	# fonte do uid neste modo (ver _restore_uid).
+	var uid := ResourceLoader.get_resource_uid(OUT_PATH)
+
 	var err := ResourceSaver.save(theme, OUT_PATH)
 	if err != OK:
 		push_error("Falha ao salvar tema (%d)" % err)
 		quit(1)
 		return
 
+	_restore_uid(uid)
+
 	print("Tema gerado: %s" % OUT_PATH)
 	quit(0)
+
+
+## Devolve ao .tres o cabeçalho `uid://` que ele tinha antes da regravação.
+##
+## `ResourceSaver.save()` de um Theme recém-criado grava o arquivo sem uid, e
+## as cenas que referenciam o tema por uid passariam a resolvê-lo só pelo
+## caminho — com um aviso do editor a cada abertura. Como o uid do tema já
+## está espalhado pelos .tscn do projeto, ele precisa ser estável entre builds.
+func _restore_uid(uid: int) -> void:
+	if uid == ResourceUID.INVALID_ID:
+		return
+	var err := ResourceSaver.set_uid(OUT_PATH, uid)
+	if err != OK:
+		push_warning("Não foi possível regravar o uid do tema (erro %d)" % err)
 
 
 # ============================================================
@@ -158,6 +178,12 @@ func _build_buttons(theme: Theme) -> void:
 	# branco dá ~1.6:1 de contraste.
 	theme.set_type_variation("AccentButton", "Button")
 	_button_styles(theme, "AccentButton", DS.ACCENT, DS.PRIMARY_DARK,
+		DS.BUTTON_H, DS.RADIUS_XL, true)
+
+	# Ação destrutiva (apagar dados). O fundo é DANGER_INK, não o DANGER puro:
+	# #FF6B6B com texto branco dá ~2.5:1 de contraste.
+	theme.set_type_variation("DangerButton", "Button")
+	_button_styles(theme, "DangerButton", DS.DANGER_INK, DS.TEXT_ON_PRIMARY,
 		DS.BUTTON_H, DS.RADIUS_XL, true)
 
 	theme.set_type_variation("SecondaryButton", "Button")

@@ -1,0 +1,124 @@
+[gd_scene load_steps=3 format=3 uid="uid://b7sily1mghod0"]
+
+[ext_resource type="Script" uid="uid://b00vg4x7p588x" path="res://GUI/settings/SettingsDialog.gd" id="1_settings"]
+[ext_resource type="Theme" uid="uid://dxghb8dsnj4fw" path="res://themes/handsign.tres" id="2_theme"]
+
+[node name="SettingsDialog" type="Window"]
+oversampling_override = 1.0
+title = "Configurações"
+initial_position = 2
+size = Vector2i(880, 1200)
+script = ExtResource("1_settings")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.9607843, 0.96862745, 1, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 48
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 48
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Title" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+theme_type_variation = &"H1"
+text = "Configurações"
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="Margin/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 24
+
+[node name="DataCard" type="PanelContainer" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_type_variation = &"CardFlat"
+
+[node name="Box" type="VBoxContainer" parent="Margin/VBox/Scroll/Content/DataCard"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Heading" type="Label" parent="Margin/VBox/Scroll/Content/DataCard/Box"]
+layout_mode = 2
+theme_type_variation = &"H3"
+text = "Dados deste aparelho"
+
+[node name="DataSummary" type="Label" parent="Margin/VBox/Scroll/Content/DataCard/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BodySm"
+text = "Nada guardado ainda neste aparelho."
+autowrap_mode = 3
+
+[node name="EraseButton" type="Button" parent="Margin/VBox/Scroll/Content/DataCard/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 130)
+layout_mode = 2
+theme_type_variation = &"SecondaryButton"
+text = "Apagar dados"
+
+[node name="ConfirmCard" type="PanelContainer" parent="Margin/VBox/Scroll/Content"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"CardDanger"
+
+[node name="Box" type="VBoxContainer" parent="Margin/VBox/Scroll/Content/ConfirmCard"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Heading" type="Label" parent="Margin/VBox/Scroll/Content/ConfirmCard/Box"]
+layout_mode = 2
+theme_type_variation = &"H3"
+text = "Apagar tudo?"
+
+[node name="ConfirmText" type="Label" parent="Margin/VBox/Scroll/Content/ConfirmCard/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BodySm"
+autowrap_mode = 3
+
+[node name="Actions" type="VBoxContainer" parent="Margin/VBox/Scroll/Content/ConfirmCard/Box"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ConfirmButton" type="Button" parent="Margin/VBox/Scroll/Content/ConfirmCard/Box/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 130)
+layout_mode = 2
+theme_type_variation = &"DangerButton"
+text = "Sim, apagar tudo"
+
+[node name="CancelButton" type="Button" parent="Margin/VBox/Scroll/Content/ConfirmCard/Box/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 112)
+layout_mode = 2
+theme_type_variation = &"GhostButton"
+text = "Cancelar"
+
+[node name="CloseButton" type="Button" parent="Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 130)
+layout_mode = 2
+theme_type_variation = &"SecondaryButton"
+text = "Fechar"

@@ -60,6 +60,40 @@ func test_reset_progress() -> void:
 	assert_false(g.is_completed(1))
 
 
+func test_erase_all_data_limpa_progresso_e_estatisticas() -> void:
+	g.mark_completed(1, 3)
+	g.mark_completed(2, 2)
+	g.award_sign_result(1, 0, 3)
+	g.register_practice(0.9)
+
+	assert_true(g.erase_all_data(), "grava o estado vazio com sucesso")
+
+	assert_eq(g.count_completed_lessons(), 0)
+	assert_false(g.is_completed(1))
+	assert_eq(g.get_stars(1), 0)
+	assert_eq(g.get_xp(), 0)
+	assert_eq(g.get_level(), 1)
+	assert_eq(g.get_streak(), 0)
+	assert_eq(g.get_practice_count(), 0)
+	assert_eq(g.get_mastered_signs(), 0)
+	assert_eq(g.get_average_precision(), -1.0, "sem prática, sem média")
+
+
+## Apagar não pode travar o usuário fora do app: a primeira lição continua
+## acessível, como em qualquer catálogo.
+func test_erase_all_data_mantem_primeira_licao_liberada() -> void:
+	g.mark_completed(1, 3)
+	g.erase_all_data()
+	assert_true(g.is_unlocked(1, CATALOG))
+	assert_false(g.is_unlocked(2, CATALOG), "as seguintes voltam a travar")
+
+
+func test_erase_all_data_e_idempotente() -> void:
+	g.erase_all_data()
+	assert_true(g.erase_all_data(), "apagar de novo continua ok")
+	assert_eq(g.count_completed_lessons(), 0)
+
+
 func test_bundled_mediapipe_model_resolves() -> void:
 	# O modelo do Holistic é embarcado em res://assets/mediapipe e precisa
 	# resolver pelo caminho longo usado pelo HolisticLandmarker — sem isso

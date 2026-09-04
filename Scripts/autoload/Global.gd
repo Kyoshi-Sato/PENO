@@ -176,6 +176,41 @@ func reset_progress() -> void:
 	_save_progress()
 
 
+## Apaga os dados locais do usuário — progresso, estrelas, XP, ofensiva e
+## estatísticas. Devolve `true` quando o disco ficou de fato consistente com
+## a memória.
+##
+## Grava um progresso VAZIO em vez de remover o arquivo. Remover faria o
+## próximo boot cair no caminho de instalação nova, que semeia a lição 1 como
+## concluída com 3 estrelas (ver `_load_progress`) — o usuário reabriria o app
+## e reencontraria um progresso que acabou de mandar apagar.
+##
+## O cache de animações baixadas é de outro autoload: quem apaga tudo também
+## chama `LessonService.clear_cache()`.
+func erase_all_data() -> bool:
+	reset_progress()
+	return _saved_progress_is_empty()
+
+
+## Relê o arquivo para conferir o que ficou gravado. `_save_progress()` só
+## avisa quando falha; sem esta checagem, um disco cheio ou sem permissão
+## deixaria o app dizendo "dados apagados" com o progresso antigo intacto,
+## pronto para voltar na próxima abertura.
+func _saved_progress_is_empty() -> bool:
+	if not FileAccess.file_exists(PROGRESS_PATH):
+		return false
+
+	var file := FileAccess.open(PROGRESS_PATH, FileAccess.READ)
+	if file == null:
+		return false
+
+	var text := file.get_as_text()
+	file.close()
+
+	var parsed: Variant = JSON.parse_string(text)
+	return parsed is Dictionary and (parsed as Dictionary).is_empty()
+
+
 # ============================================================
 # GAMIFICAÇÃO — XP, NÍVEL, OFENSIVA
 # ============================================================
