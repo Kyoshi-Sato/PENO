@@ -21,6 +21,7 @@ func _init() -> void:
 	await process_frame
 	_seed_progress()
 
+	await _shoot_splash()
 	await _shoot_main()
 	await _shoot_progress()
 	await _shoot_map()
@@ -70,6 +71,13 @@ func _mount(path: String) -> Node:
 	await process_frame
 	await process_frame
 	return inst
+
+
+## A splash é a cena de entrada do projeto. Capturada logo após montar, antes
+## de ela mesma navegar para a Home.
+func _shoot_splash() -> void:
+	await _mount("res://GUI/splash/SplashScreen.tscn")
+	await _capture("00_splash")
 
 
 func _shoot_main() -> void:

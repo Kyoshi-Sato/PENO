@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://ckf17j3xplukh"]
+[gd_scene load_steps=5 format=3 uid="uid://ckf17j3xplukh"]
 
 [ext_resource type="Theme" path="res://themes/handsign.tres" id="1_theme"]
 [ext_resource type="Script" uid="uid://tlwllo0x8jtl" path="res://GUI/lessonmap/LessonMapScreen.gd" id="2_map"]
 [ext_resource type="Script" path="res://GUI/components/BottomNav.gd" id="3_nav"]
+[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
 
 [node name="LessonMapScreen" type="Control"]
 layout_mode = 3
@@ -23,74 +24,86 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.9607843, 0.96862745, 1, 1)
 
-[node name="Root" type="VBoxContainer" parent="."]
+[node name="Outer" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_constants/separation = 0
 
-[node name="HeaderArea" type="MarginContainer" parent="Root"]
+[node name="Frame" type="MarginContainer" parent="Outer"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+apply_bottom = false
+script = ExtResource("99_frame")
+
+[node name="Root" type="VBoxContainer" parent="Outer/Frame"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="HeaderArea" type="MarginContainer" parent="Outer/Frame/Root"]
 layout_mode = 2
 theme_override_constants/margin_left = 40
 theme_override_constants/margin_top = 72
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 16
 
-[node name="Stack" type="VBoxContainer" parent="Root/HeaderArea"]
+[node name="Stack" type="VBoxContainer" parent="Outer/Frame/Root/HeaderArea"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Header" type="HBoxContainer" parent="Root/HeaderArea/Stack"]
+[node name="Header" type="HBoxContainer" parent="Outer/Frame/Root/HeaderArea/Stack"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="SummaryCard" type="PanelContainer" parent="Root/HeaderArea/Stack"]
+[node name="SummaryCard" type="PanelContainer" parent="Outer/Frame/Root/HeaderArea/Stack"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CardFlat"
 
-[node name="VBox" type="VBoxContainer" parent="Root/HeaderArea/Stack/SummaryCard"]
+[node name="VBox" type="VBoxContainer" parent="Outer/Frame/Root/HeaderArea/Stack/SummaryCard"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Row" type="HBoxContainer" parent="Root/HeaderArea/Stack/SummaryCard/VBox"]
+[node name="Row" type="HBoxContainer" parent="Outer/Frame/Root/HeaderArea/Stack/SummaryCard/VBox"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Root/HeaderArea/Stack/SummaryCard/VBox/Row"]
+[node name="Label" type="Label" parent="Outer/Frame/Root/HeaderArea/Stack/SummaryCard/VBox/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"H3"
 text = "Progresso da trilha"
 
-[node name="PercentLabel" type="Label" parent="Root/HeaderArea/Stack/SummaryCard/VBox/Row"]
+[node name="PercentLabel" type="Label" parent="Outer/Frame/Root/HeaderArea/Stack/SummaryCard/VBox/Row"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"H3"
 text = "0%"
 
-[node name="Bar" type="ProgressBar" parent="Root/HeaderArea/Stack/SummaryCard/VBox"]
+[node name="Bar" type="ProgressBar" parent="Outer/Frame/Root/HeaderArea/Stack/SummaryCard/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 max_value = 1.0
 show_percentage = false
 
-[node name="CaptionLabel" type="Label" parent="Root/HeaderArea/Stack/SummaryCard/VBox"]
+[node name="CaptionLabel" type="Label" parent="Outer/Frame/Root/HeaderArea/Stack/SummaryCard/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"Caption"
 text = ""
 
-[node name="Scroll" type="ScrollContainer" parent="Root"]
+[node name="Scroll" type="ScrollContainer" parent="Outer/Frame/Root"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="Margin" type="MarginContainer" parent="Root/Scroll"]
+[node name="Margin" type="MarginContainer" parent="Outer/Frame/Root/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 40
@@ -98,13 +111,13 @@ theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 32
 
-[node name="PathContainer" type="VBoxContainer" parent="Root/Scroll/Margin"]
+[node name="PathContainer" type="VBoxContainer" parent="Outer/Frame/Root/Scroll/Margin"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="Nav" type="PanelContainer" parent="Root"]
+[node name="Nav" type="PanelContainer" parent="Outer"]
 unique_name_in_owner = true
 layout_mode = 2
 script = ExtResource("3_nav")

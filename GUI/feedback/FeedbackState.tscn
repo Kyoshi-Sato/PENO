@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://busbb8aswp80w"]
+[gd_scene load_steps=5 format=3 uid="uid://busbb8aswp80w"]
 
 [ext_resource type="Script" uid="uid://dwgrv10wlxww4" path="res://GUI/feedback/FeedbackState.gd" id="1_feedback"]
 [ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
 [ext_resource type="Script" uid="uid://bga24jwnii2q" path="res://Scripts/PrecisionRing.gd" id="3_ring"]
+[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
 
 [node name="FeedbackState" type="Control"]
 layout_mode = 3
@@ -40,6 +41,8 @@ theme_override_constants/margin_left = 40
 theme_override_constants/margin_top = 232
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 56
+
+script = ExtResource("99_frame")
 
 [node name="VBox" type="VBoxContainer" parent="Scroll/Margin"]
 layout_mode = 2

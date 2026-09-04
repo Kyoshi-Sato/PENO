@@ -1,0 +1,86 @@
+[gd_scene load_steps=4 format=3 uid="uid://dsplash0handsg"]
+
+[ext_resource type="Theme" path="res://themes/handsign.tres" id="1_theme"]
+[ext_resource type="Script" path="res://GUI/splash/SplashScreen.gd" id="2_script"]
+[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="3_frame"]
+
+[node name="SplashScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_theme")
+script = ExtResource("2_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.14117648, 0.23529412, 0.4745098, 1)
+
+[node name="Frame" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 64
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 96
+script = ExtResource("3_frame")
+
+[node name="Root" type="VBoxContainer" parent="Frame"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TopSpacer" type="Control" parent="Frame/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Brand" type="VBoxContainer" parent="Frame/Root"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Wordmark" type="Label" parent="Frame/Root/Brand"]
+layout_mode = 2
+theme_type_variation = &"OnPrimaryH1"
+text = "HandSign"
+horizontal_alignment = 1
+
+[node name="Tagline" type="Label" parent="Frame/Root/Brand"]
+layout_mode = 2
+theme_type_variation = &"OnPrimaryMuted"
+text = "Aprenda Libras praticando"
+horizontal_alignment = 1
+
+[node name="BottomSpacer" type="Control" parent="Frame/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Loading" type="VBoxContainer" parent="Frame/Root"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Bar" type="ProgressBar" parent="Frame/Root/Loading"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_type_variation = &"ProgressBarOnDark"
+max_value = 1.0
+show_percentage = false
+
+[node name="StatusLabel" type="Label" parent="Frame/Root/Loading"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"OnPrimaryMuted"
+text = "Preparando…"
+horizontal_alignment = 1

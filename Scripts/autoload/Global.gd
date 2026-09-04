@@ -42,10 +42,9 @@ var _progress: Dictionary = {}
 
 func _ready() -> void:
 	_load_progress()
-	# Aquece o cache das telas em segundo plano: sem isso, só a PRIMEIRA
-	# visita a cada tela paga o parse do avatar. As requisições são
-	# assíncronas e não seguram o primeiro frame.
-	call_deferred("warm_scene_cache")
+	# O aquecimento do cache de cenas é conduzido pela SplashScreen, que é a
+	# cena de entrada do projeto. Fazer isso aqui competia com o primeiro
+	# quadro da Home e produzia justamente o engasgo que se queria evitar.
 
 
 # ============================================================
@@ -458,23 +457,54 @@ func _await_threaded_load(path: String) -> PackedScene:
 		var progress: Array = []
 		var status := ResourceLoader.load_threaded_get_status(path, progress)
 		if status == ResourceLoader.THREAD_LOAD_LOADED:
-			return ResourceLoader.load_threaded_get(path) as PackedScene
+			var packed: PackedScene = ResourceLoader.load_threaded_get(path) as PackedScene
+			if packed != null:
+				return packed
+			return _load_blocking(path)
 		if status != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-			return null
+			return _load_blocking(path)
 		await get_tree().process_frame
 	return null
 
 
-## Pede em segundo plano o carregamento das telas principais e guarda o
-## resultado no cache. Idempotente: chamar de novo não repete trabalho.
+## Último recurso quando a carga em thread falha. Trava o frame, mas uma tela
+## que demora é infinitamente melhor que uma tela que não abre — e a carga em
+## thread do GDScript é sabidamente sensível a resolução de `class_name`.
+func _load_blocking(path: String) -> PackedScene:
+	push_warning("Carga em thread falhou para %s — recarregando na thread principal" % path)
+	return ResourceLoader.load(path) as PackedScene
+
+
+## Carrega uma cena e guarda no cache. Idempotente e `await`-ável, para a
+## SplashScreen conseguir mostrar progresso real.
+##
+## Deliberadamente SÍNCRONO, na thread principal. Carregar em thread durante o
+## boot disparava, de forma intermitente, falhas de resolução de `class_name`
+## em sub-cenas cujo script raiz declara uma (VisionTask, CameraSelectorDialog
+## — o nó que falhava mudava a cada execução). Resolver nomes de classe do
+## GDScript a partir de uma thread de trabalho corre com a inicialização do
+## próprio cache de classes; medido em 2 falhas a cada 6 boots.
+##
+## A splash existe exatamente para absorver esse bloqueio. Em runtime,
+## `change_scene` continua usando carga em thread — mas nessa altura tudo já
+## está compilado e em cache, então o caminho em thread nem chega a rodar.
+func preload_scene(path: String) -> void:
+	if _scene_cache.has(path):
+		return
+	# Cede um quadro antes de travar: a barra da splash precisa conseguir
+	# desenhar o passo anterior.
+	await get_tree().process_frame
+	var packed: PackedScene = ResourceLoader.load(path) as PackedScene
+	if packed != null:
+		_scene_cache[path] = packed
+	else:
+		push_error("Não foi possível pré-carregar a cena: %s" % path)
+
+
+## Aquece o cache das telas principais de uma vez.
 func warm_scene_cache() -> void:
 	for path: String in [MAIN_SCENE, MAP_SCENE, PROGRESS_SCENE, LESSON_SCENE]:
-		if _scene_cache.has(path):
-			continue
-		ResourceLoader.load_threaded_request(path)
-		var packed: PackedScene = await _await_threaded_load(path)
-		if packed != null:
-			_scene_cache[path] = packed
+		await preload_scene(path)
 
 
 ## O véu vive num CanvasLayer do autoload, não da cena: ele precisa

@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://ow4wtfh0h7bc"]
+[gd_scene load_steps=4 format=3 uid="uid://ow4wtfh0h7bc"]
 
 [ext_resource type="Script" uid="uid://cbp0yqnfeohb3" path="res://GUI/recordingstate/RecordingState.gd" id="1_recording"]
 [ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
+[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
 
 [node name="RecordingState" type="Control"]
 layout_mode = 3
@@ -49,10 +50,12 @@ color = Color(0.05, 0.06, 0.13, 0.4)
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 216.0
 grow_horizontal = 2
 theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 216
 theme_override_constants/margin_right = 40
+apply_bottom = false
+script = ExtResource("99_frame")
 
 [node name="Row" type="HBoxContainer" parent="TopBar"]
 layout_mode = 2
@@ -128,6 +131,9 @@ layout_mode = 2
 theme_override_constants/margin_left = 40
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 24
+apply_top = false
+apply_bottom = false
+script = ExtResource("99_frame")
 
 [node name="TipsCard" type="PanelContainer" parent="Layout/TipsMargin"]
 layout_mode = 2
@@ -148,6 +154,8 @@ theme_override_constants/margin_left = 40
 theme_override_constants/margin_top = 40
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 48
+apply_top = false
+script = ExtResource("99_frame")
 
 [node name="VBox" type="VBoxContainer" parent="Layout/BottomCard/Margin"]
 layout_mode = 2

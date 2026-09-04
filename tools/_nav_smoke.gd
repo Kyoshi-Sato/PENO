@@ -14,6 +14,13 @@ func _init() -> void:
 		quit(1)
 		return
 
+	# Simula o que a SplashScreen faz no boot real. Sem isto a medição sai
+	# toda "fria" e não representa o que o usuário vive: `--script` substitui
+	# o MainLoop, então a splash (main_scene do projeto) nunca roda aqui.
+	var warm := Time.get_ticks_msec()
+	await g.warm_scene_cache()
+	print("aquecimento inicial (o que a splash cobre): %d ms" % (Time.get_ticks_msec() - warm))
+
 	var route: Array[String] = [
 		g.MAIN_SCENE, g.MAP_SCENE, g.PROGRESS_SCENE,
 		g.MAIN_SCENE, g.LESSON_SCENE, g.MAIN_SCENE,

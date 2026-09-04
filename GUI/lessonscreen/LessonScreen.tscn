@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://do506com7uwbg"]
+[gd_scene load_steps=12 format=3 uid="uid://do506com7uwbg"]
 
 [ext_resource type="Script" uid="uid://cram0fm1nrsqn" path="res://GUI/lessonscreen/LessonScreen.gd" id="1_lesson_screen"]
 [ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" uid="uid://dt08jfr74fxgr" path="res://GUI/vision/holistic_landmarker/HolisticLandmarker.tscn" id="8_holistic"]
 [ext_resource type="PackedScene" uid="uid://bspsiyxtbjgyg" path="res://GUI/cameraselector/CameraSelectorDialog.tscn" id="9_camera_dialog"]
 [ext_resource type="Script" path="res://GUI/components/StepIndicator.gd" id="10_steps"]
+[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
 
 [node name="LessonScreen" type="Control"]
 layout_mode = 3
@@ -85,6 +86,8 @@ grow_horizontal = 2
 theme_override_constants/margin_left = 40
 theme_override_constants/margin_top = 56
 theme_override_constants/margin_right = 40
+apply_bottom = false
+script = ExtResource("99_frame")
 
 [node name="Row" type="HBoxContainer" parent="Chrome"]
 layout_mode = 2

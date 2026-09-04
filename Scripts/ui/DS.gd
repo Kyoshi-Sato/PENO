@@ -101,6 +101,14 @@ const SPACE_3XL := 96
 ## Margem lateral padrão de tela.
 const GUTTER := 40
 
+## Teto de largura do conteúdo, em unidades de canvas (~1240 = 460 dp).
+##
+## Com `stretch/aspect = expand`, um tablet ou uma janela em paisagem entrega
+## um viewport bem mais largo que os 1080 de base. Sem teto, uma linha de
+## texto atravessaria a tela inteira e os cards da trilha virariam faixas.
+## `ScreenFrame` centraliza o conteúdo dentro deste limite.
+const MAX_CONTENT_WIDTH := 1240
+
 
 # ============================================================
 #  RAIO

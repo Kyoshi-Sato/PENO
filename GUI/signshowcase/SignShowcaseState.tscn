@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://busofjttw620w"]
+[gd_scene load_steps=4 format=3 uid="uid://busofjttw620w"]
 
 [ext_resource type="Script" uid="uid://bvwxc6fthc42r" path="res://GUI/signshowcase/SignShowcaseState.gd" id="1_showcase"]
 [ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
+[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
 
 [node name="SignShowcaseState" type="Control"]
 layout_mode = 3
@@ -41,6 +42,8 @@ theme_override_constants/margin_left = 40
 theme_override_constants/margin_top = 40
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 48
+apply_top = false
+script = ExtResource("99_frame")
 
 [node name="VBox" type="VBoxContainer" parent="Layout/BottomCard/Margin"]
 layout_mode = 2

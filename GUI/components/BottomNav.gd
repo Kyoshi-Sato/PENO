@@ -36,6 +36,30 @@ func _init() -> void:
 	_build()
 
 
+func _ready() -> void:
+	_apply_safe_bottom()
+	var vp := get_viewport()
+	if vp != null and not vp.size_changed.is_connected(_apply_safe_bottom):
+		vp.size_changed.connect(_apply_safe_bottom)
+
+
+## A barra de gestos do Android come a borda inferior. O recuo entra como
+## padding DENTRO do stylebox da nav, não como margem fora dela: assim o
+## fundo branco continua encostando na borda da tela e só o conteúdo sobe.
+## Empurrar a nav inteira para cima deixaria uma faixa da cor de fundo
+## aparecendo por baixo dela.
+func _apply_safe_bottom() -> void:
+	var inset := ScreenFrame.safe_insets(self)
+	if inset.w <= 0:
+		return
+	var base: StyleBox = get_theme_stylebox("panel", "NavBar")
+	if base == null:
+		return
+	var sb: StyleBox = base.duplicate()
+	sb.content_margin_bottom = base.content_margin_bottom + float(inset.w)
+	add_theme_stylebox_override("panel", sb)
+
+
 func _build() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", DS.SPACE_XXS)
