@@ -48,6 +48,9 @@ static func create(
 func _init() -> void:
 	theme_type_variation = &"CardSunken"
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Card decorativo: sem PASS, o PanelContainer engole o arrasto do
+	# ScrollContainer e a tela não rola em cima dele.
+	mouse_filter = Control.MOUSE_FILTER_PASS
 
 	var box := VBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER

@@ -51,6 +51,9 @@ static func create(
 
 
 func _init() -> void:
+	# Chip decorativo: PASS para não bloquear a rolagem de quem o contém.
+	mouse_filter = Control.MOUSE_FILTER_PASS
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", DS.SPACE_XS + 2)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER

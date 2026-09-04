@@ -14,7 +14,8 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="Librarefa"
+config/name="HandSign"
+config/version="1.0.0"
 run/main_scene="res://GUI/splash/SplashScreen.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/bg_color=Color(0.14117648, 0.23529412, 0.4745098, 1)

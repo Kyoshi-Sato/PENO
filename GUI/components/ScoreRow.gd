@@ -32,6 +32,10 @@ static func create(title: String, pct: float, coverage: float, missing: bool,
 
 func _init() -> void:
 	theme_type_variation = &"CardSunken"
+	# PanelContainer nasce STOP (diferente dos outros Container, que nascem
+	# PASS). Como este card é só apresentação, STOP fazia dele uma zona morta
+	# para o arrasto do ScrollContainer que o contém.
+	mouse_filter = Control.MOUSE_FILTER_PASS
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", DS.SPACE_XS)
@@ -64,6 +68,9 @@ func _init() -> void:
 	_bar.max_value = 100.0
 	_bar.value = 0.0
 	_bar.show_percentage = false
+	# Range herda MOUSE_FILTER_STOP; aqui a barra só informa, e parar o toque
+	# só serviria para travar a rolagem da tela de resultado.
+	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_bar)
 
 	_hint = Label.new()

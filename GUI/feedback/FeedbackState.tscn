@@ -50,6 +50,7 @@ theme_override_constants/separation = 32
 [node name="ResultCard" type="PanelContainer" parent="Scroll/Margin/VBox" unique_id=1896185701]
 unique_name_in_owner = true
 layout_mode = 2
+mouse_filter = 1
 
 [node name="Inner" type="VBoxContainer" parent="Scroll/Margin/VBox/ResultCard" unique_id=944870735]
 layout_mode = 2
@@ -110,6 +111,7 @@ theme_override_constants/separation = 16
 [node name="ModuleCard" type="PanelContainer" parent="Scroll/Margin/VBox" unique_id=1684920985]
 unique_name_in_owner = true
 layout_mode = 2
+mouse_filter = 1
 theme_type_variation = &"CardFlat"
 
 [node name="VBox" type="VBoxContainer" parent="Scroll/Margin/VBox/ModuleCard" unique_id=1916312474]
@@ -135,6 +137,7 @@ theme_type_variation = &"Caption"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
+mouse_filter = 2
 max_value = 1.0
 show_percentage = false
 

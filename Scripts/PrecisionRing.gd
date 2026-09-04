@@ -49,6 +49,10 @@ func _ready() -> void:
 	_font = get_theme_default_font()
 	if custom_minimum_size == Vector2.ZERO:
 		custom_minimum_size = Vector2(260, 260)
+	# O anel é só desenho, mas Control nasce com MOUSE_FILTER_STOP: dentro de
+	# um ScrollContainer ele virava um bloco de 300x300 onde o arrasto do dedo
+	# não rolava a tela. IGNORE devolve o toque para quem rola.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 ## Anima o preenchimento do anel — o número cresce junto com o arco.

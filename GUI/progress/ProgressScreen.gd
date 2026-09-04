@@ -34,6 +34,8 @@ func _ready() -> void:
 func _build_level_card() -> void:
 	var card := PanelContainer.new()
 	card.theme_type_variation = &"CardHero"
+	# Sem PASS o card ocuparia o topo do ScrollContainer como zona morta.
+	card.mouse_filter = Control.MOUSE_FILTER_PASS
 	content.add_child(card)
 
 	var box := VBoxContainer.new()
@@ -80,6 +82,7 @@ func _build_level_card() -> void:
 	bar.max_value = 1.0
 	bar.value = 0.0
 	bar.show_percentage = false
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(bar)
 	Motion.fill_bar(bar, Global.get_level_progress())
 

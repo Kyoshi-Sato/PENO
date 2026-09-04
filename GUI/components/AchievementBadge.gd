@@ -22,12 +22,16 @@ static func create(data: Dictionary) -> AchievementBadge:
 
 func _init() -> void:
 	theme_type_variation = &"CardFlat"
+	# PanelContainer nasce MOUSE_FILTER_STOP: numa lista dentro de
+	# ScrollContainer isso vira uma faixa onde o arrasto do dedo não rola.
+	mouse_filter = Control.MOUSE_FILTER_PASS
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", DS.SPACE_SM)
 	add_child(row)
 
 	_disc = PanelContainer.new()
+	_disc.mouse_filter = Control.MOUSE_FILTER_PASS
 	_disc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(_disc)
 
@@ -55,6 +59,8 @@ func _init() -> void:
 	_bar.custom_minimum_size = Vector2(0, 14)
 	_bar.max_value = 1.0
 	_bar.show_percentage = false
+	# Barra só informa o quanto falta; não deve capturar o toque.
+	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_bar)
 
 

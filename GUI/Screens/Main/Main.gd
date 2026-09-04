@@ -225,6 +225,7 @@ func _show_placeholder(message: String, is_error: bool = false) -> void:
 
 	var card := PanelContainer.new()
 	card.theme_type_variation = &"CardFlat"
+	card.mouse_filter = Control.MOUSE_FILTER_PASS
 	path_container.add_child(card)
 
 	var box := VBoxContainer.new()
