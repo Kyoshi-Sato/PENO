@@ -80,6 +80,7 @@ alignment = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(300, 300)
 layout_mode = 2
+mouse_filter = 2
 script = ExtResource("3_ring")
 
 [node name="StarsRow" type="HBoxContainer" parent="Scroll/Margin/VBox/ResultCard/Inner" unique_id=1203251595]

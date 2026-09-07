@@ -9,6 +9,13 @@ var camera_feed: CameraFeed
 var image_file_web: FileAccessWeb
 var video_file_web: FileAccessWeb
 
+## Instrumentação do caminho Godot→MediaPipe: soma o tempo gasto em
+## readback da textura + conversão de formato, por quadro de câmera. É
+## custo de main thread e não depende do backend de inferência — quem lê e
+## zera é o relatório do HolisticLandmarker.
+var perf_readback_us: int = 0
+var perf_readback_frames: int = 0
+
 @onready var external_files_disabled: Label = $VBoxContainer/ExternalFileDisabled
 @onready var progress_bar: ProgressBar = $VBoxContainer/ProgressBar
 @onready var image_view: TextureRect = $VBoxContainer/Image
@@ -323,6 +330,7 @@ func _camera_frame_changed() -> void:
 	var texture := camera_viewport.get_texture()
 	if texture == null:
 		return
+	var readback_started_us := Time.get_ticks_usec()
 	var image: Image = texture.get_image()
 	if image == null:
 		return
@@ -332,6 +340,8 @@ func _camera_frame_changed() -> void:
 		image.convert(Image.FORMAT_RGB8)
 	var img := MediaPipeImage.new()
 	img.set_image(image)
+	perf_readback_us += Time.get_ticks_usec() - readback_started_us
+	perf_readback_frames += 1
 	_camera_frame(img)
 
 func _camera_frame(image: MediaPipeImage) -> void:

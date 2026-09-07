@@ -206,7 +206,7 @@ func _fill_reward(num_stars: int) -> void:
 		# quando não havia XP a conceder (nota 0, precisão < 50%), que é o
 		# caminho menos testado da tela.
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.text = "Você já tinha ganho o XP deste sinal — supere sua nota para ganhar mais." \
+		lbl.text = "Você já tinha ganho o XP deste sinal, aumente sua nota para ganhar mais." \
 			if num_stars > 0 else "Faça o sinal com mais precisão para ganhar XP."
 		reward_row.add_child(lbl)
 
@@ -264,7 +264,7 @@ func _fill_breakdown() -> void:
 		var note := Label.new()
 		note.theme_type_variation = &"Caption"
 		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		note.text = "Reconhecemos sua execução espelhada (mão dominante invertida) — ela vale a mesma nota."
+		note.text = "Reconhecemos sua execução espelhada (mão dominante invertida), ela vale a mesma nota."
 		breakdown.add_child(note)
 
 	lbl_breakdown_title.visible = rows > 0
@@ -351,7 +351,7 @@ func _apply_result_copy(num_stars: int) -> void:
 			lbl_subtitle.text = "Execução impecável do sinal."
 		2:
 			lbl_title.text = "Muito bom!"
-			lbl_subtitle.text = "Faltou pouco para a nota máxima — veja abaixo o que ajustar."
+			lbl_subtitle.text = "Faltou pouco para a nota máxima, veja abaixo o que ajustar."
 		1:
 			lbl_title.text = "Quase lá"
 			lbl_subtitle.text = "Bom começo. O detalhamento abaixo mostra onde melhorar."
@@ -376,9 +376,9 @@ func _compute_time_seconds(payload: Dictionary) -> int:
 
 
 func _stars_for_precision(precision: float) -> int:
-	if precision >= 0.9:
+	if precision >= 0.7:
 		return 3
-	elif precision >= 0.7:
+	elif precision >= 0.6:
 		return 2
 	elif precision >= 0.5:
 		return 1

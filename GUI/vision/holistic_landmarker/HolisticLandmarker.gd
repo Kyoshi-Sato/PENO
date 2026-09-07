@@ -1,6 +1,10 @@
 extends VisionTask
 
 var package_name := "mediapipe.tasks.vision.holistic_landmarker"
+## O caminho é o do bundle oficial, usado só como URL de fallback pelo
+## download do GDMP. O que o app carrega de verdade é o repack em
+## `res://assets/mediapipe/` — pose full e sem os modelos de face. Ver
+## `tools/montar_bundle_holistico.py`.
 var task_file := "holistic_landmarker/holistic_landmarker/float16/latest/holistic_landmarker.task"
 var task_runner := MediaPipeTaskRunner.new()
 var renderer: MediaPipeHolisticRenderer
@@ -12,6 +16,34 @@ var capture_active := false
 ## true somente após task_runner.initialize() — enviar frames antes disso
 ## gera um erro do MediaPipe por frame de câmera.
 var _task_initialized := false
+## Backend com que o grafo atual subiu. Difere da preferência do usuário
+## quando a GPU não pôde ser usada.
+var active_backend: Global.InferenceBackend = Global.InferenceBackend.CPU
+## Sonda de GPU aberta esperando veredito. Só o primeiro resultado que a GPU
+## entregar fecha como sucesso — ver `Global.end_gpu_probe`.
+var _gpu_probe_open := false
+
+# ─────────────────────────────────────────────
+#  MEDIÇÃO DE DESEMPENHO
+# ─────────────────────────────────────────────
+#
+# Duas grandezas independentes, porque elas têm donos diferentes:
+#   * readback — custo de main thread para tirar o quadro do SubViewport e
+#     converter o formato. Não muda com o backend de inferência.
+#   * resultados/s — o que o pipeline realmente entrega. É o número que
+#     decide se GPU vale a pena.
+# O log sai só em build de debug e só enquanto há quadros entrando.
+
+const PERF_REPORT_INTERVAL_MS := 3000
+
+## `_packets_callback` roda em thread do GDMP, então este contador pode
+## perder uma contagem numa corrida. Para uma taxa média em janela de 3 s
+## isso não muda a conclusão, e a alternativa (mutex ou `call_deferred` por
+## quadro) custaria justamente no caminho que se quer medir.
+var _perf_results: int = 0
+var _perf_submitted: int = 0
+var _perf_latency_ms_total: int = 0
+var _perf_window_started_ms: int = 0
 var capture_started_at_ms := 0
 var capture_first_packet_ms := -1
 var capture_frames: Array = []
@@ -22,6 +54,9 @@ var capture_output_path := ""
 signal landmarks_detected
 ## Emitido quando a câmera ativa muda (após start_camera_with_feed).
 signal camera_changed(feed_name: String)
+## Emitido a cada (re)inicialização bem-sucedida do grafo, com o backend que
+## de fato subiu — que pode não ser o pedido, se a GPU falhou.
+signal inference_backend_ready(backend: Global.InferenceBackend)
 
 # ─────────────────────────────────────────────
 #  CONTROLE DE RENDER DO OVERLAY (performance)
@@ -46,10 +81,17 @@ var _last_render_at_ms: int = 0
 
 func _ready() -> void:
 	super()
+	# Trocar o backend em Configurações no meio de uma lição refaz o grafo
+	# aqui mesmo — sem isso a escolha só valeria na próxima abertura do app.
+	Global.inference_backend_changed.connect(_on_inference_backend_changed)
 	capture_timer = Timer.new()
 	capture_timer.one_shot = true
 	add_child(capture_timer)
 	capture_timer.timeout.connect(_on_capture_timeout)
+
+func _on_inference_backend_changed(_backend: Global.InferenceBackend) -> void:
+	_init_task()
+
 
 func _reset() -> void:
 	capture_active = false
@@ -67,6 +109,11 @@ func _start_camera() -> void:
 ## desativar, a câmera continua ligada depois desta cena morrer.
 func _exit_tree() -> void:
 	super()
+	# Saímos vivos, mas talvez sem nenhum quadro ter passado pela GPU: fecha
+	# a sonda sem veredito em vez de vetar quem nunca chegou a ser testado.
+	if _gpu_probe_open:
+		_gpu_probe_open = false
+		Global.cancel_gpu_probe()
 	if camera_feed != null:
 		camera_feed.feed_is_active = false
 
@@ -169,6 +216,21 @@ func start_camera_with_feed(feed_id: int, format_index: int = -1) -> bool:
 	if idx < 0 or idx >= formats.size():
 		idx = _pick_reasonable_format_index(formats)
 
+	# A resolução não muda o custo da inferência (o ImageToTensor
+	# redimensiona para o tamanho fixo do modelo), mas muda a QUALIDADE das
+	# mãos: o recorte da mão sai do quadro em resolução nativa, e a 720p uma
+	# mão a um braço de distância já vem sendo ampliada para caber no tensor.
+	# O log diz o que o aparelho ofereceu, para essa escolha ser decidida com
+	# dado em vez de palpite.
+	if OS.is_debug_build():
+		var catalogo: PackedStringArray = PackedStringArray()
+		for i in range(formats.size()):
+			var fmt: Dictionary = formats[i] as Dictionary
+			catalogo.append("%s%dx%d" % [
+				"*" if i == idx else "", int(fmt.get("width", 0)), int(fmt.get("height", 0))])
+		print("[camera] %s formatos (* = escolhido): %s" %
+			[camera_feed.get_name(), ", ".join(catalogo)])
+
 	if not camera_feed.set_format(idx, {}):
 		push_warning("Falha ao setar formato %d para câmera '%s'" % [idx, camera_feed.get_name()])
 		return false
@@ -259,8 +321,28 @@ func _on_capture_timeout() -> void:
 	capture_active = false
 	_export_capture_json()
 
+## Roda na thread de callbacks do GDMP. Um resultado chegando é a única
+## prova de que o delegate sobreviveu à abertura dos nós; o veredito vai
+## para a main thread porque fechar a sonda grava arquivo.
 func _packets_callback(outputs: Dictionary) -> void:
+	_perf_results += 1
+	# Latência ponta a ponta sem estado compartilhado entre threads: o
+	# timestamp do pacote é o `Time.get_ticks_msec()` carimbado na
+	# submissão, então a subtração fecha aqui dentro mesmo.
+	if outputs.has("image_out"):
+		var out_packet: MediaPipePacket = outputs["image_out"]
+		if out_packet != null:
+			_perf_latency_ms_total += Time.get_ticks_msec() - int(out_packet.timestamp / 1000)
+	if _gpu_probe_open:
+		_confirm_gpu_probe.call_deferred()
 	show_result(outputs)
+
+
+func _confirm_gpu_probe() -> void:
+	if not _gpu_probe_open:
+		return
+	_gpu_probe_open = false
+	Global.end_gpu_probe(true)
 
 func _init_task() -> void:
 	var file := get_external_model(task_file)
@@ -274,9 +356,74 @@ func _init_task() -> void:
 				[task_file, Global.BUNDLED_MODEL_DIR])
 		return
 
+	var model := file.get_buffer(file.get_length())
+
+	var async := false
+	if running_mode == MediaPipeVisionTask.RUNNING_MODE_LIVE_STREAM:
+		async = true
+
+	if not task_runner.packets_callback.is_connected(self._packets_callback):
+		task_runner.packets_callback.connect(self._packets_callback)
+
+	# Enquanto o runner novo não subir, nenhum quadro deve entrar: um
+	# `send` no meio da troca é erro do MediaPipe por quadro de câmera.
+	_task_initialized = false
+
+	# Uma sonda da montagem anterior que ficou sem resposta não vale como
+	# falha: o grafo está sendo trocado, não travou.
+	if _gpu_probe_open:
+		_gpu_probe_open = false
+		Global.cancel_gpu_probe()
+
+	var wanted := Global.resolve_inference_backend()
+
+	# A tentativa de GPU fica cercada por uma sonda gravada em disco: se o
+	# delegate derrubar o processo, o boot seguinte encontra a sonda aberta
+	# e nem tenta de novo (ver `Global.begin_gpu_probe`).
+	if wanted == Global.InferenceBackend.GPU:
+		Global.begin_gpu_probe()
+		_gpu_probe_open = true
+
+	var ok := _try_initialize(model, wanted, async)
+
+	# O delegate GPU depende de driver: quando o kGpuService não pode ser
+	# criado, `initialize` devolve false. Antes o retorno era ignorado e o
+	# nó seguia se dizendo pronto — câmera ligada, zero landmark, nenhum
+	# aviso. Cair para a CPU é o comportamento certo.
+	#
+	# `ok == true` NÃO fecha a sonda: o delegate GL abre os nós na thread
+	# dele e o segfault chega depois do initialize já ter voltado. Quem
+	# fecha é o primeiro resultado, em `_packets_callback`.
+	if wanted == Global.InferenceBackend.GPU and not ok:
+		_gpu_probe_open = false
+		Global.end_gpu_probe(false)
+		push_warning(
+			"HolisticLandmarker: delegate GPU indisponível neste aparelho; caindo para CPU.")
+		wanted = Global.InferenceBackend.CPU
+		ok = _try_initialize(model, wanted, async)
+
+	if not ok:
+		push_error("HolisticLandmarker: não foi possível inicializar o grafo. Sem detecção.")
+		return
+
+	active_backend = wanted
+	# Trocar de backend no meio da sessão: a janela de medição em curso tem
+	# quadros do backend antigo dentro. Recomeça, senão a primeira linha do
+	# backend novo sai misturada.
+	_perf_window_started_ms = 0
+	_task_initialized = true
+	renderer = MediaPipeHolisticRenderer.new()
+	inference_backend_ready.emit(active_backend)
+	super()
+
+
+## Monta o grafo com o backend pedido e tenta subir o runner.
+## Devolve false quando o MediaPipe recusa a configuração.
+func _try_initialize(model: PackedByteArray, backend: Global.InferenceBackend, async: bool) -> bool:
 	var options := MediaPipeProto.new()
 	options.initialize(package_name + ".proto.HolisticLandmarkerGraphOptions")
-	options.set_field("base_options/model_asset/file_content", file.get_buffer(file.get_length()))
+	options.set_field("base_options/model_asset/file_content", model)
+	_apply_acceleration(options, backend)
 
 	var builder := MediaPipeGraphBuilder.new()
 	var node := builder.add_node(package_name + ".HolisticLandmarkerGraph")
@@ -288,18 +435,42 @@ func _init_task() -> void:
 	node.get_output_tag("RIGHT_HAND_LANDMARKS").connect_to(builder.get_output_tag("RIGHT_HAND_LANDMARKS"), "right_hand_landmarks")
 	node.get_output_tag("IMAGE").connect_to(builder.get_output_tag("IMAGE"), "image_out")
 
-	var config := builder.get_config()
-	var async := false
-	if running_mode == MediaPipeVisionTask.RUNNING_MODE_LIVE_STREAM:
-		async = true
+	# `delegate` (herdado da VisionTask) decide o formato do pixel que o
+	# `_camera_frame_changed` entrega: RGBA8 para o caminho GL, RGB8 para a
+	# CPU. Ele precisa acompanhar o backend real, senão o grafo GPU recebe
+	# um quadro sem canal alfa para subir como textura.
+	delegate = (MediaPipeTaskBaseOptions.DELEGATE_GPU if backend == Global.InferenceBackend.GPU
+		else MediaPipeTaskBaseOptions.DELEGATE_CPU)
 
-	if not task_runner.packets_callback.is_connected(self._packets_callback):
-		task_runner.packets_callback.connect(self._packets_callback)
+	if backend == Global.InferenceBackend.GPU:
+		# Com acceleration/gpu os nós de inferência passam a exigir o
+		# kGpuService. Sem passar recursos aqui o MediaPipe tenta criá-los
+		# sozinho e, se o EGL do aparelho não colaborar, o grafo inteiro
+		# falha em vez de só a inferência.
+		return task_runner.initialize(builder.get_config(), async, {}, MediaPipeGPUResources.new())
 
-	task_runner.initialize(config, async)
-	_task_initialized = true
-	renderer = MediaPipeHolisticRenderer.new()
-	super()
+	return task_runner.initialize(builder.get_config(), async)
+
+
+## Escreve `base_options/acceleration`. O campo é um oneof: gravar uma folha
+## dentro de `gpu` ou de `xnnpack` já seleciona o ramo correspondente.
+##
+## `use_advanced_gpu_api` não é detalhe: ele escolhe entre os DOIS caminhos de
+## GPU do InferenceCalculator.
+##   false → TfLiteGpuDelegate. Recusa os `DEQUANTIZE` do bundle float16
+##           esparso, particiona o modelo e morre com SIGSEGV em
+##           `densify::Prepare` (S23 Ultra e desktop, mesma assinatura).
+##   true  → TFLiteGPURunner, implementação do próprio MediaPipe, que nem
+##           passa pelo delegate do TFLite. Sobrevive ao mesmo bundle.
+## O valor default do proto é false — ou seja, pedir GPU "do jeito óbvio"
+## cai no caminho que quebra.
+func _apply_acceleration(options: MediaPipeProto, backend: Global.InferenceBackend) -> void:
+	if backend == Global.InferenceBackend.GPU:
+		options.set_field(
+			"base_options/acceleration/gpu/use_advanced_gpu_api", Global.GPU_ADVANCED_API)
+		return
+	options.set_field(
+		"base_options/acceleration/xnnpack/num_threads", Global.get_inference_cpu_threads())
 
 func _process_image(image: Image) -> void:
 	var input_image := MediaPipeImage.new()
@@ -319,9 +490,62 @@ func _process_video(image: Image, timestamp_ms: int) -> void:
 func _process_camera(image: MediaPipeImage, timestamp_ms: int) -> void:
 	if not _task_initialized:
 		return   # sem modelo/task não há o que processar (erro já reportado)
+	_perf_submitted += 1
+	_maybe_report_performance()
 	var packet := image.get_packet()
 	packet.timestamp = timestamp_ms * 1000
 	task_runner.send({"image_in": packet})
+
+
+## Main thread, chamado por quadro de câmera. Fecha a janela de medição a
+## cada PERF_REPORT_INTERVAL_MS e imprime uma linha.
+func _maybe_report_performance() -> void:
+	if not OS.is_debug_build():
+		return
+
+	var now_ms := Time.get_ticks_msec()
+	if _perf_window_started_ms == 0:
+		_perf_window_started_ms = now_ms
+		_reset_performance_window()
+		return
+
+	var elapsed_ms := now_ms - _perf_window_started_ms
+	if elapsed_ms < PERF_REPORT_INTERVAL_MS:
+		return
+
+	var seconds := float(elapsed_ms) / 1000.0
+	var readback_ms := 0.0
+	if perf_readback_frames > 0:
+		readback_ms = (float(perf_readback_us) / float(perf_readback_frames)) / 1000.0
+
+	var frame_size := Vector2i.ZERO
+	if camera_viewport != null:
+		frame_size = camera_viewport.size
+
+	var latency_ms := 0.0
+	if _perf_results > 0:
+		latency_ms = float(_perf_latency_ms_total) / float(_perf_results)
+
+	print(("[perf] backend=%s  entrada=%.1f fps  resultados=%.1f fps  "
+		+ "latencia=%.0f ms  readback=%.1f ms/quadro  quadro=%dx%d") % [
+		Global.inference_backend_label(active_backend),
+		float(_perf_submitted) / seconds,
+		float(_perf_results) / seconds,
+		latency_ms,
+		readback_ms,
+		frame_size.x, frame_size.y,
+	])
+
+	_perf_window_started_ms = now_ms
+	_reset_performance_window()
+
+
+func _reset_performance_window() -> void:
+	_perf_submitted = 0
+	_perf_results = 0
+	_perf_latency_ms_total = 0
+	perf_readback_us = 0
+	perf_readback_frames = 0
 
 func show_result(outputs: Dictionary) -> void:
 	# Coleta de frames pra captura é independente do render visual.

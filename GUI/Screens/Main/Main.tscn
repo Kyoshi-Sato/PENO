@@ -208,4 +208,3 @@ theme_type_variation = &"NavBar"
 script = ExtResource("4_nav")
 
 [node name="SettingsDialog" parent="." unique_id=915391892 instance=ExtResource("100_settings")]
-visible = false

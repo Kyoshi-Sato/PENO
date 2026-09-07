@@ -10,6 +10,10 @@ extends Node
 # ---------- CAMINHOS ----------
 
 const PROGRESS_PATH := "user://progress.json"
+## Preferências do aparelho (backend de inferência). Fica FORA do
+## progress.json de propósito: "Apagar dados" zera o que o usuário
+## conquistou, não a escolha de hardware desta instalação.
+const SETTINGS_PATH := "user://settings.json"
 const MODEL_DIR := "user://GDMP"
 ## Modelos MediaPipe embarcados no projeto (e no APK via include_filter).
 const BUNDLED_MODEL_DIR := "res://assets/mediapipe"
@@ -38,10 +42,13 @@ var current_lesson_id: int = 1
 ##   "1": { "completed": true, "stars": 3 }
 ## }
 var _progress: Dictionary = {}
+## Preferências do aparelho. Ver SETTINGS_PATH.
+var _settings: Dictionary = {}
 
 
 func _ready() -> void:
 	_load_progress()
+	_load_settings()
 	# O aquecimento do cache de cenas é conduzido pela SplashScreen, que é a
 	# cena de entrada do projeto. Fazer isso aqui competia com o primeiro
 	# quadro da Home e produzia justamente o engasgo que se queria evitar.
@@ -601,4 +608,248 @@ func _save_progress() -> void:
 		return
 
 	file.store_string(JSON.stringify(_progress))
+	file.close()
+
+
+# ============================================================
+# BACKEND DE INFERÊNCIA (MediaPipe)
+# ============================================================
+#
+# O grafo holístico nunca dizia em que hardware queria rodar: as opções
+# só levavam o `model_asset`, e `base_options/acceleration` ficava vazio.
+# Sem esse campo o MediaPipe cai no XNNPACK com o número de threads padrão
+# — 1 no desktop, e no Android clamp(núcleos / 2, 1, 4). Nunca a GPU.
+#
+# Medido aqui (desktop, quadro 720p vazio, só o detector de pose roda):
+#   sem acceleration / 1 thread ...... 18,9 ms
+#   xnnpack 2 threads ................ 10,4 ms
+#   xnnpack 4 threads .................. 6,0 ms
+#   xnnpack 8 threads .................. 4,0 ms
+# Escala quase linear — o custo era falta de paralelismo, não o modelo.
+# (`tools/_bench_inferencia.gd` reproduz.)
+
+## Onde o MediaPipe deve rodar a inferência.
+## AUTO resolve para um backend concreto — ver `resolve_inference_backend`.
+enum InferenceBackend { AUTO, GPU, CPU }
+
+## Qual dos dois caminhos de GPU do InferenceCalculator usar.
+##
+## O `TfLiteGpuDelegate` (false) NÃO funciona com este bundle: o
+## holistic_landmarker.task é float16 com pesos esparsos, o delegate recusa
+## os `DEQUANTIZE`, particiona o modelo (108 ops na GPU, 183 na CPU) e os nós
+## `DENSIFY` que sobram na partição de CPU perdem os parâmetros de
+## esparsidade. Resultado, com a mesma assinatura no Galaxy S23 Ultra
+## (Adreno 740) e no desktop: SIGSEGV lendo 0x0 na thread `mediapipe_gl_ru`,
+## em `tflite::ops::builtin::densify::Prepare`.
+##
+## O `TFLiteGPURunner` (true) é a implementação do próprio MediaPipe e nem
+## chega no delegate do TFLite — o mesmo bundle sobrevive. É também o que a
+## API de tarefas do GDMP usa quando se pede DELEGATE_GPU.
+##
+## Reproduzir: `tools/_bench_inferencia.gd -- gpu` (trava) contra
+## `-- gpuadv` (roda).
+const GPU_ADVANCED_API := true
+
+## A GPU pode ser escolhida em Configurações?
+##
+## Ligada de novo depois que `GPU_ADVANCED_API` contornou o crash. Continua
+## sendo uma escolha explícita: AUTO fica na CPU até alguém confirmar a GPU
+## num aparelho de verdade — o teste que temos é no llvmpipe, que é
+## rasterizador de software e não prova nada sobre a Adreno.
+const GPU_DELEGATE_AVAILABLE := true
+
+const SETTING_BACKEND := "inference_backend"
+## Marcado ANTES de tentar subir o grafo na GPU e limpo depois que ele sobe.
+## Se ainda estiver marcado no boot seguinte, a tentativa anterior não voltou.
+const SETTING_GPU_PROBE := "gpu_probe_pending"
+## Gravado quando a GPU falhou neste aparelho. Só o usuário limpa, escolhendo
+## um backend de novo em Configurações.
+const SETTING_GPU_BLOCKED := "gpu_unavailable"
+
+## Emitido quando a preferência muda, para quem já tem um grafo montado
+## refazer a inicialização sem reiniciar o app.
+signal inference_backend_changed(backend: InferenceBackend)
+
+
+## Preferência guardada (pode ser AUTO — use `resolve_inference_backend`
+## para saber onde a inferência vai de fato rodar).
+func get_inference_backend() -> InferenceBackend:
+	var raw: int = int(_settings.get(SETTING_BACKEND, InferenceBackend.AUTO))
+	if raw < 0 or raw > InferenceBackend.CPU:
+		return InferenceBackend.AUTO
+	return raw as InferenceBackend
+
+
+## Escolher de novo é o pedido explícito de tentar a GPU mais uma vez — senão
+## um veto antigo prenderia o aparelho na CPU para sempre.
+##
+## O atalho de "não faz nada" precisa olhar o veto, e não só a preferência:
+## um aparelho que travou fica com a preferência em GPU E o veto ligado, e
+## comparar só a preferência fazia o toque em GPU sair por aqui sem limpar
+## nada. Na tela isso aparecia como um botão que não seleciona.
+func set_inference_backend(backend: InferenceBackend) -> void:
+	if get_inference_backend() == backend and not is_gpu_blocked():
+		return
+	_settings[SETTING_BACKEND] = int(backend)
+	_settings.erase(SETTING_GPU_BLOCKED)
+	_save_settings()
+	inference_backend_changed.emit(backend)
+
+
+## A GPU está vetada por ter falhado antes neste aparelho?
+func is_gpu_blocked() -> bool:
+	return bool(_settings.get(SETTING_GPU_BLOCKED, false))
+
+
+## Chamado logo antes de montar o grafo na GPU. O flag vai para o disco na
+## hora: o delegate GL pode derrubar o processo em vez de devolver erro
+## (visto aqui: segfault em `densify::Prepare` dentro do TfLiteGpuDelegate),
+## e um crash não deixa rodar nenhum tratamento em memória. O rastro no
+## arquivo é o que sobrevive.
+func begin_gpu_probe() -> void:
+	_settings[SETTING_GPU_PROBE] = true
+	_save_settings()
+
+
+## Veredito da tentativa. `ok == false` veta a GPU até o usuário escolher de
+## novo em Configurações.
+##
+## `ok == true` só vale quando a GPU JÁ ENTREGOU um resultado: `initialize()`
+## devolver true não prova nada, porque o delegate abre os nós numa thread
+## própria e o segfault chega depois (backtrace em `CalculatorNode::OpenNode`).
+## Fechar a sonda no retorno do initialize deixaria o app repetindo a mesma
+## GPU que acabou de derrubá-lo.
+func end_gpu_probe(ok: bool) -> void:
+	_settings.erase(SETTING_GPU_PROBE)
+	if ok:
+		_settings.erase(SETTING_GPU_BLOCKED)
+	else:
+		_settings[SETTING_GPU_BLOCKED] = true
+	_save_settings()
+
+
+## Fecha a sonda sem veredito: o grafo GPU foi desmontado antes de dar
+## resposta (troca de backend, saída da tela). Não travou, mas também não
+## provou nada — vetar seria injusto e aprovar seria mentira.
+func cancel_gpu_probe() -> void:
+	if not _settings.has(SETTING_GPU_PROBE):
+		return
+	_settings.erase(SETTING_GPU_PROBE)
+	_save_settings()
+
+
+## A GPU pode ser escolhida neste build? Ver `GPU_DELEGATE_AVAILABLE`.
+func is_gpu_supported() -> bool:
+	return GPU_DELEGATE_AVAILABLE
+
+
+## Resolve AUTO em um backend concreto.
+##
+## AUTO fica na CPU em toda plataforma — agora por medição, não por medo.
+##
+## Galaxy S23 Ultra, câmera 720x1280, quadro com pessoa, janelas de 3 s
+## depois do aquecimento:
+##            entrada    resultados   latência   readback
+##   GPU      30,0 fps   30,3 fps      45 ms      6,7 ms
+##   CPU      30,0 fps   29,9 fps      28 ms     10,8 ms
+##
+## As duas saturam a câmera: `entrada == resultados`, o FlowLimiter não
+## descarta nada, e 30 fps é o teto do feed. Não há o que ganhar em vazão, e
+## a GPU ainda responde mais devagar (a imagem vem da CPU, então cada quadro
+## precisa subir para textura e voltar) e custa ~460 ms de latência na
+## primeira janela, compilando shader.
+##
+## A GPU segue escolhível de propósito: num aparelho mais fraco a CPU pode
+## não segurar os 30 fps, e aí a conta inverte.
+func resolve_inference_backend() -> InferenceBackend:
+	var pref := get_inference_backend()
+	if not is_gpu_supported() or is_gpu_blocked():
+		return InferenceBackend.CPU
+	if pref == InferenceBackend.GPU:
+		return InferenceBackend.GPU
+	return InferenceBackend.CPU
+
+
+## Threads do XNNPACK quando a inferência roda na CPU.
+##
+## Metade dos núcleos, no mínimo 2 e no máximo 4: é a heurística do próprio
+## MediaPipe para mobile. O teto importa — a Godot ainda precisa de núcleo
+## para renderizar o avatar, e passar disso no celular esquenta e o
+## governador derruba o clock.
+func get_inference_cpu_threads() -> int:
+	return clampi(OS.get_processor_count() / 2, 2, 4)
+
+
+## Rótulo curto para a UI de configurações.
+func inference_backend_label(backend: InferenceBackend) -> String:
+	match backend:
+		InferenceBackend.GPU:
+			return "GPU"
+		InferenceBackend.CPU:
+			return "CPU"
+		_:
+			return "Automático"
+
+
+# ============================================================
+# PERSISTÊNCIA DAS PREFERÊNCIAS
+# ============================================================
+
+func _load_settings() -> void:
+	if not FileAccess.file_exists(SETTINGS_PATH):
+		_settings = {}
+		return
+
+	var file := FileAccess.open(SETTINGS_PATH, FileAccess.READ)
+	if file == null:
+		_settings = {}
+		push_warning("Não foi possível abrir preferências em: %s" % SETTINGS_PATH)
+		return
+
+	var text := file.get_as_text()
+	file.close()
+
+	var parsed: Variant = JSON.parse_string(text)
+	if parsed is Dictionary:
+		_settings = parsed
+	else:
+		_settings = {}
+		push_warning("Arquivo de preferências inválido. Preferências reiniciadas.")
+
+	_close_dangling_gpu_probe()
+	_migrate_unusable_gpu_preference()
+
+
+## Instalações que escolheram GPU antes de ela ser desligada ficariam com uma
+## preferência que nunca vai ser atendida — e Configurações mostrando CPU
+## marcada sobre uma escolha de GPU. Volta para AUTO, que é o que está de
+## fato acontecendo.
+func _migrate_unusable_gpu_preference() -> void:
+	if is_gpu_supported():
+		return
+	if get_inference_backend() != InferenceBackend.GPU:
+		return
+	_settings[SETTING_BACKEND] = int(InferenceBackend.AUTO)
+	_settings.erase(SETTING_GPU_BLOCKED)
+	_save_settings()
+
+
+## Sonda aberta no boot = a execução anterior tentou a GPU e não voltou para
+## fechá-la. Vale como falha: o app abriria de novo na mesma GPU que acabou
+## de derrubá-lo.
+func _close_dangling_gpu_probe() -> void:
+	if not bool(_settings.get(SETTING_GPU_PROBE, false)):
+		return
+	push_warning(
+		"Inferência: a tentativa anterior de usar a GPU não terminou. Usando a CPU.")
+	end_gpu_probe(false)
+
+
+func _save_settings() -> void:
+	var file := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
+	if file == null:
+		push_warning("Não foi possível salvar preferências em: %s" % SETTINGS_PATH)
+		return
+
+	file.store_string(JSON.stringify(_settings))
 	file.close()
