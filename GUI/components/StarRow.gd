@@ -8,6 +8,10 @@ extends HBoxContainer
 ## entre elas — é a recompensa visual do resultado da lição.
 
 const MAX_STARS := 3
+## Atraso entre uma estrela e a próxima na animação de revelação. Público
+## porque quem sonoriza o resultado precisa cair no mesmo compasso — som e
+## imagem desencontrados são piores do que só imagem.
+const REVEAL_STAGGER := 0.09
 
 @export_range(0, 3) var stars: int = 0:
 	set(v):
@@ -66,7 +70,7 @@ func _sync(animate: bool) -> void:
 			g.scale = Vector2.ZERO
 			g.pivot_offset = g.custom_minimum_size * 0.5
 			var t := g.create_tween()
-			t.tween_interval(0.09 * float(i))
+			t.tween_interval(REVEAL_STAGGER * float(i))
 			t.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 			t.tween_property(g, "scale", Vector2.ONE, DS.DUR_BASE)
 		else:

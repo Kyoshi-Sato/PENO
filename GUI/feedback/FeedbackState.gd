@@ -19,6 +19,14 @@ signal modules_requested
 ## Emitido quando a validação assíncrona termina e a UI foi preenchida.
 signal evaluation_completed(stars: int)
 
+## Transposição de cada estrela: dó, mi, sol a partir da mesma amostra. As
+## três juntas formam um acorde maior, então 3 estrelas soam como resolução e
+## 1 estrela soa como começo de frase — a nota é audível, não só visível.
+const STAR_PITCHES: Array[float] = [1.0, 1.26, 1.5]
+## Espera entre a última estrela e o tilintar do XP. Sem ela os dois caem no
+## mesmo instante e viram um único ruído.
+const XP_CHIME_DELAY := 0.34
+
 ## Rótulos amigáveis para os grupos que o comparador devolve.
 const GROUP_LABELS: Dictionary = {
 	"Pose (corpo)": "Corpo e posicionamento",
@@ -57,6 +65,10 @@ var _last_stars: int = 0
 var _last_result: Dictionary = {}
 ## Descarta resultados de validações antigas se o usuário reavaliar rápido.
 var _eval_generation: int = 0
+## Preenchidos por _fill_reward e lidos por _play_result_audio: qual som
+## fecha a tela depende de ter havido XP e de o nível ter virado.
+var _last_gained: int = 0
+var _last_level_up: bool = false
 # Contexto da avaliação em andamento (preenchido em evaluate, lido no done).
 var _pending_lesson: Lesson = null
 var _pending_idx: int = 0
@@ -163,6 +175,8 @@ func _on_validation_done(result: Dictionary, generation: int) -> void:
 
 	_set_buttons_enabled(true)
 	Motion.fade_in(result_card, DS.DUR_BASE, 0.0)
+	# Depois de _fill_reward, que é quem sabe se houve XP e se o nível virou.
+	_play_result_audio(num_stars)
 	evaluation_completed.emit(num_stars)
 
 
@@ -185,9 +199,14 @@ func _fill_reward(num_stars: int) -> void:
 
 	var lesson_id: int = _pending_lesson.lesson_id if _pending_lesson else -1
 	var gained: int = 0
+	# O nível é derivado do XP total, então a única forma de saber que ele
+	# virou é comparar antes e depois de creditar.
+	var level_before: int = Global.get_level()
 	if lesson_id >= 0:
 		gained = Global.award_sign_result(lesson_id, _pending_idx, num_stars)
 	Global.register_practice(float(_last_result.get("precision", 0.0)))
+	_last_gained = gained
+	_last_level_up = Global.get_level() > level_before
 
 	if gained > 0:
 		var chip := StatChip.create(HSIcon.Name.BOLT, "+%d" % gained, "XP conquistado",
@@ -358,6 +377,39 @@ func _apply_result_copy(num_stars: int) -> void:
 		_:
 			lbl_title.text = "Vamos tentar de novo?"
 			lbl_subtitle.text = "Observe o avatar com atenção e repita o sinal."
+
+
+## Trilha da tela de resultado. Espelha exatamente o que a tela mostra, em
+## ordem: primeiro o veredito, depois a recompensa.
+##
+## Nada aqui é a única fonte de uma informação — as estrelas, o anel e o chip
+## de XP já dizem tudo isso na imagem. Ver `Scripts/autoload/Audio.gd`.
+func _play_result_audio(num_stars: int) -> void:
+	if not bool(_last_result.get("ok", false)):
+		# Falha técnica (usuário fora do quadro, captura vazia) tem som
+		# próprio: não é uma nota baixa, é ausência de nota.
+		Audio.play(Audio.Cue.FAILURE)
+		return
+
+	if num_stars <= 0:
+		Audio.play(Audio.Cue.RETRY)
+	else:
+		Audio.play_cascade(Audio.Cue.STAR, num_stars,
+			StarRow.REVEAL_STAGGER, STAR_PITCHES)
+
+	# Sem estrelas não há XP a creditar (`award_sign_result` só paga melhora),
+	# então este trecho nunca encosta no som de "tentar de novo".
+	if _last_gained <= 0 and not _last_level_up:
+		return
+
+	var espera: float = StarRow.REVEAL_STAGGER * float(maxi(num_stars - 1, 0)) \
+		+ XP_CHIME_DELAY
+	await get_tree().create_timer(espera).timeout
+	if not is_inside_tree():
+		return
+	# Subir de nível engole o tilintar de XP em vez de somar a ele: são a
+	# mesma notícia, e a maior já contém a menor.
+	Audio.play(Audio.Cue.LEVEL_UP if _last_level_up else Audio.Cue.XP)
 
 
 # ---------- HEURÍSTICAS ----------

@@ -147,9 +147,25 @@ func _on_pressed() -> void:
 	if state == State.LOCKED:
 		# Recusa audível visualmente: o card treme em vez de não fazer nada.
 		Motion.shake(_card, 10.0)
+		# O mesmo som de "não deu": nada aconteceu, e não por culpa de quem
+		# tocou. Um som de erro aqui repreenderia o usuário por tentar abrir
+		# uma lição que o app ainda não liberou.
+		_play(Audio.Cue.FAILURE)
 		return
 	Motion.pulse(_card, 0.98)
+	# O card não usa `Motion.attach_press` — o botão é uma sobreposição de
+	# tela cheia e escalá-lo deformaria o cartão inteiro —, então o clique
+	# de toque precisa ser tocado à mão aqui.
+	_play(Audio.Cue.TAP)
 	pressed.emit(lesson_id)
+
+
+## Este componente é @tool: numa sessão do editor o autoload Audio não existe,
+## e o card É clicável na pré-visualização da cena.
+func _play(cue: Audio.Cue) -> void:
+	if Engine.is_editor_hint():
+		return
+	Audio.play(cue)
 
 
 # ------------------------------------------------------------

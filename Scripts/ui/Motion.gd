@@ -20,9 +20,21 @@ static func attach_press(button: BaseButton) -> void:
 		button.pivot_offset = button.size * 0.5)
 
 	button.button_down.connect(func() -> void:
+		# O clique acompanha o encolhimento, não a ação: o retorno tem que
+		# sair no instante do toque, mesmo que o botão leve a uma tela que
+		# demora a montar. Em `pressed` ele chegaria depois da transição.
+		_play_press_sound()
 		_scale_to(button, Vector2.ONE * DS.PRESS_SCALE, DS.DUR_INSTANT))
 	button.button_up.connect(func() -> void:
 		_scale_to(button, Vector2.ONE, DS.DUR_FAST))
+
+
+## Isolado num método por causa do editor: `attach_press` é chamado por
+## componentes @tool, e o autoload Audio não existe numa sessão do editor.
+static func _play_press_sound() -> void:
+	if Engine.is_editor_hint():
+		return
+	Audio.play(Audio.Cue.TAP)
 
 
 static func _scale_to(node: Control, target: Vector2, duration: float) -> void:

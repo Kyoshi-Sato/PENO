@@ -50,6 +50,31 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 24
 
+[node name="SoundCard" type="PanelContainer" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_type_variation = &"CardFlat"
+
+[node name="Box" type="VBoxContainer" parent="Margin/VBox/Scroll/Content/SoundCard"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Heading" type="Label" parent="Margin/VBox/Scroll/Content/SoundCard/Box"]
+layout_mode = 2
+theme_type_variation = &"H3"
+text = "Som"
+
+[node name="SoundHelp" type="Label" parent="Margin/VBox/Scroll/Content/SoundCard/Box"]
+layout_mode = 2
+theme_type_variation = &"BodySm"
+text = "Efeitos curtos na contagem, na gravação e no resultado. Todos apenas reforçam o que já aparece na tela — com o som desligado nada deixa de ser informado."
+autowrap_mode = 3
+
+[node name="SoundToggle" type="Button" parent="Margin/VBox/Scroll/Content/SoundCard/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 130)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+
 [node name="PerformanceCard" type="PanelContainer" parent="Margin/VBox/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"CardFlat"

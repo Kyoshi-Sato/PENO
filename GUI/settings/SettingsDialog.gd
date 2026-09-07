@@ -1,6 +1,6 @@
 class_name SettingsDialog
 extends Window
-## Popup da engrenagem da Home. Duas seções: onde rodar o reconhecimento
+## Popup da engrenagem da Home. Três seções: som, onde rodar o reconhecimento
 ## (GPU/CPU) e apagar os dados locais do usuário.
 ##
 ## Uso:
@@ -16,6 +16,7 @@ extends Window
 signal data_erased
 
 @onready var scroll: ScrollContainer = %Scroll
+@onready var btn_sound: Button = %SoundToggle
 @onready var backend_help: Label = %BackendHelp
 @onready var backend_list: VBoxContainer = %BackendList
 @onready var summary: Label = %DataSummary
@@ -30,13 +31,19 @@ signal data_erased
 var _erase_glyph: HSIcon
 var _erase_label: Label
 
+## Conteúdo do botão de som. Ver `_decorate_sound_button`.
+var _sound_label: Label
+var _sound_check: HSIcon
+
 
 func _ready() -> void:
 	_build_backend_options()
 	_decorate_erase_button()
+	_decorate_sound_button()
 
 	close_requested.connect(hide)
 	btn_close.pressed.connect(hide)
+	btn_sound.pressed.connect(_on_sound_pressed)
 	btn_erase.pressed.connect(_on_erase_pressed)
 	btn_cancel.pressed.connect(_show_confirm.bind(false))
 	btn_confirm.pressed.connect(_on_confirm_pressed)
@@ -47,6 +54,12 @@ func _ready() -> void:
 
 	Motion.attach_press(btn_erase)
 	Motion.attach_press(btn_confirm)
+	Motion.attach_press(btn_sound)
+	# Os dois de fechar/cancelar não tinham o retorno de toque que o resto do
+	# app tem — sem ele, os únicos botões mudos do diálogo seriam justamente
+	# os que o usuário aperta para sair.
+	Motion.attach_press(btn_cancel)
+	Motion.attach_press(btn_close)
 
 	_refresh()
 
@@ -57,6 +70,7 @@ func _ready() -> void:
 
 func _refresh() -> void:
 	_show_confirm(false)
+	_sync_sound_button()
 	_build_backend_options()
 	summary.text = _summary_text()
 	confirm_text.text = _confirm_text()
@@ -130,6 +144,62 @@ func _show_confirm(on: bool) -> void:
 	await get_tree().process_frame
 	if is_instance_valid(confirm_card) and confirm_card.visible:
 		scroll.ensure_control_visible(confirm_card)
+
+
+# ═══════════════════════════════════════════════════════════
+#  SOM
+# ═══════════════════════════════════════════════════════════
+#
+# Um botão só, que alterna. Toda a informação de estado está no rótulo, na
+# variação do tema e no visto — não existe um "sino cortado" na família de
+# ícones do app, e inventar um só para esta linha quebraria a família.
+
+func _on_sound_pressed() -> void:
+	var ligado: bool = not Global.is_sound_enabled()
+	Global.set_sound_enabled(ligado)
+	_sync_sound_button()
+	# Ligar sem ouvir nada não confirma nada: o clique do próprio botão sai em
+	# `button_down`, ou seja, antes da preferência mudar. Este é o retorno.
+	if ligado:
+		Audio.play(Audio.Cue.RECORD_START)
+
+
+func _sync_sound_button() -> void:
+	if _sound_label == null:
+		return
+	var ligado: bool = Global.is_sound_enabled()
+	_sound_label.text = "Efeitos sonoros ligados" if ligado else "Efeitos sonoros desligados"
+	_sound_label.add_theme_color_override("font_color",
+		DS.TEXT_ON_PRIMARY if ligado else DS.TEXT)
+	_sound_check.visible = ligado
+	btn_sound.theme_type_variation = &"PrimaryButton" if ligado else &"SecondaryButton"
+
+
+## Mesmo arranjo das linhas de backend: rótulo à esquerda, visto à direita.
+func _decorate_sound_button() -> void:
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.add_theme_constant_override("separation", DS.SPACE_SM)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.offset_left = DS.SPACE_MD
+	row.offset_right = -DS.SPACE_MD
+	btn_sound.add_child(row)
+
+	_sound_label = Label.new()
+	_sound_label.theme_type_variation = &"H3"
+	_sound_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sound_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_sound_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_sound_label)
+
+	_sound_check = HSIcon.new()
+	_sound_check.icon = HSIcon.Name.CHECK
+	_sound_check.color = DS.TEXT_ON_PRIMARY
+	_sound_check.custom_minimum_size = Vector2(52, 52)
+	_sound_check.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_sound_check)
+
+	_sync_sound_button()
 
 
 # ═══════════════════════════════════════════════════════════

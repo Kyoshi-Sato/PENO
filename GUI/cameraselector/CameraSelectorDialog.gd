@@ -21,6 +21,7 @@ var _current_id: int = -1
 func _ready() -> void:
 	close_requested.connect(hide)
 	btn_close.pressed.connect(hide)
+	Motion.attach_press(btn_close)
 
 
 ## cameras: array vindo de HolisticLandmarker.list_available_cameras()
@@ -89,6 +90,9 @@ func _build_camera_row(cam: Dictionary) -> Control:
 		check.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(check)
 
+	# Mesmo retorno de toque do resto do app: sem isto as linhas de câmera
+	# seriam os únicos botões grandes que não respondem ao dedo.
+	Motion.attach_press(btn)
 	btn.pressed.connect(func() -> void:
 		camera_selected.emit(feed_id)
 		hide()

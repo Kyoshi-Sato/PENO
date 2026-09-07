@@ -402,6 +402,11 @@ func _on_next_lesson() -> void:
 	if current_sign_index < lesson.sinais.size():
 		state_machine.go_to_sign_showcase()
 	else:
+		# A fanfarra atravessa a troca de cena de propósito: os tocadores
+		# vivem no autoload, não nesta árvore. `stop_all` limpa a cauda das
+		# estrelas para o acorde final entrar em campo limpo.
+		Audio.stop_all()
+		Audio.play(Audio.Cue.LESSON_DONE)
 		Global.mark_completed(lesson.lesson_id, _lesson_stars())
 		Global.go_to_map()
 

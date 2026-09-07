@@ -43,6 +43,11 @@ const FRAMING_TIPS: Array[Dictionary] = [
 	{"icon": HSIcon.Name.EYE, "text": "Luz de frente para você, não atrás"},
 ]
 
+## Transposição do pip da contagem, do "3" ao "1". Subir meio tom por número
+## faz a contagem soar como uma contagem e não como três toques iguais — é a
+## mesma informação que o numeral já dá, no canal sonoro.
+const COUNTDOWN_PITCHES: Array[float] = [1.0, 1.12, 1.26]
+
 enum Phase { IDLE, COUNTDOWN, RECORDING, DONE }
 
 @onready var lbl_sign: Label = %SignPill
@@ -173,6 +178,10 @@ func on_capture_complete(export_data: Dictionary) -> void:
 	_tick_timer.stop()
 	lbl_countdown.visible = false
 	capture_bar.visible = false
+	# Duas notas descendo: "pode baixar as mãos". Deliberadamente neutro — a
+	# nota ainda não foi calculada, e um som de acerto aqui prometeria um
+	# resultado que a análise ainda pode desmentir.
+	Audio.play(Audio.Cue.CAPTURE_DONE)
 
 	var payload := {
 		"sign_id": _current_sign_name,
@@ -214,6 +223,10 @@ func _start_recording() -> void:
 	Motion.fill_bar(capture_bar, 1.0, _recording_seconds_f)
 
 	_apply_preview_texture()
+	# Antes de emitir: o `request_start_capture` faz a LessonScreen montar a
+	# captura, e essa chamada pode segurar o quadro. O som tem que sair junto
+	# com a barra, não depois dela.
+	Audio.play(Audio.Cue.RECORD_START)
 	request_start_capture.emit(_recording_seconds_f)
 
 
@@ -222,6 +235,18 @@ func _set_countdown(text: String) -> void:
 	# Cada número entra com um pulso: sem isso a contagem parece travada,
 	# porque só o glifo muda numa tela sem mais nenhum movimento.
 	Motion.pulse(lbl_countdown, 1.18)
+	# O pip permite se enquadrar olhando para a câmera em vez de para o
+	# numeral — que é justamente o que a contagem existe para o usuário fazer.
+	Audio.play(Audio.Cue.COUNTDOWN, _countdown_pitch())
+
+
+## Pitch do pip atual. `_ticks_remaining` conta para baixo (3, 2, 1), então o
+## índice sobe conforme a contagem desce e a melodia sobe junto.
+func _countdown_pitch() -> float:
+	var idx: int = COUNTDOWN_SECONDS - _ticks_remaining
+	if idx < 0 or idx >= COUNTDOWN_PITCHES.size():
+		return 1.0
+	return COUNTDOWN_PITCHES[idx]
 
 
 func _on_tick() -> void:

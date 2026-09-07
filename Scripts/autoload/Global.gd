@@ -792,6 +792,38 @@ func inference_backend_label(backend: InferenceBackend) -> String:
 
 
 # ============================================================
+# SOM
+# ============================================================
+#
+# Efeitos sonoros de interface (ver `Scripts/autoload/Audio.gd`). Mora aqui,
+# junto do backend de inferência, porque é preferência DO APARELHO: "Apagar
+# dados" zera o que o usuário conquistou, não como este celular está
+# configurado.
+#
+# Padrão ligado. Nenhum som do app carrega informação exclusiva — todos
+# reforçam algo que já está na tela — então deixar ligado não esconde nada
+# de quem não ouve, e deixar desligado por padrão esconderia o recurso de
+# quem ouve.
+
+const SETTING_SOUND := "sound_enabled"
+
+## Emitido quando o usuário liga ou desliga o som em Configurações.
+signal sound_enabled_changed(enabled: bool)
+
+
+func is_sound_enabled() -> bool:
+	return bool(_settings.get(SETTING_SOUND, true))
+
+
+func set_sound_enabled(enabled: bool) -> void:
+	if enabled == is_sound_enabled():
+		return
+	_settings[SETTING_SOUND] = enabled
+	_save_settings()
+	sound_enabled_changed.emit(enabled)
+
+
+# ============================================================
 # PERSISTÊNCIA DAS PREFERÊNCIAS
 # ============================================================
 
