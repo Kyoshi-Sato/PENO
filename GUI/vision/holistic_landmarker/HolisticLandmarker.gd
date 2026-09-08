@@ -40,6 +40,10 @@ const PERF_REPORT_INTERVAL_MS := 3000
 ## perder uma contagem numa corrida. Para uma taxa média em janela de 3 s
 ## isso não muda a conclusão, e a alternativa (mutex ou `call_deferred` por
 ## quadro) custaria justamente no caminho que se quer medir.
+## Último fechamento da janela de medição, retido para o painel de depuração
+## poder mostrar os mesmos números que a linha [perf] imprime. Vazio até a
+## primeira janela fechar. Ver `_maybe_report_performance`.
+var last_perf: Dictionary = {}
 var _perf_results: int = 0
 var _perf_submitted: int = 0
 var _perf_latency_ms_total: int = 0
@@ -526,11 +530,22 @@ func _maybe_report_performance() -> void:
 	if _perf_results > 0:
 		latency_ms = float(_perf_latency_ms_total) / float(_perf_results)
 
+	# Retido antes de zerar a janela: sem isto os números só existem dentro
+	# desta linha de print, e o painel de depuração não teria o que mostrar.
+	last_perf = {
+		"backend": Global.inference_backend_label(active_backend),
+		"entrada_fps": float(_perf_submitted) / seconds,
+		"resultados_fps": float(_perf_results) / seconds,
+		"latencia_ms": latency_ms,
+		"readback_ms": readback_ms,
+		"quadro": frame_size,
+	}
+
 	print(("[perf] backend=%s  entrada=%.1f fps  resultados=%.1f fps  "
 		+ "latencia=%.0f ms  readback=%.1f ms/quadro  quadro=%dx%d") % [
-		Global.inference_backend_label(active_backend),
-		float(_perf_submitted) / seconds,
-		float(_perf_results) / seconds,
+		last_perf["backend"],
+		last_perf["entrada_fps"],
+		last_perf["resultados_fps"],
 		latency_ms,
 		readback_ms,
 		frame_size.x, frame_size.y,

@@ -69,6 +69,9 @@ var _eval_generation: int = 0
 ## fecha a tela depende de ter havido XP e de o nível ter virado.
 var _last_gained: int = 0
 var _last_level_up: bool = false
+## geração -> id da tarefa no WorkerThreadPool, até ela ser recolhida.
+## Ver `_reap_task`.
+var _tasks: Dictionary = {}
 # Contexto da avaliação em andamento (preenchido em evaluate, lido no done).
 var _pending_lesson: Lesson = null
 var _pending_idx: int = 0
@@ -128,7 +131,10 @@ func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
 	# entrega via Callable.call_deferred é ignorada se este nó for liberado.
 	var val: SignValidator = validator
 	var deliver: Callable = _on_validation_done
-	WorkerThreadPool.add_task(func() -> void:
+	# O id precisa ser guardado: `add_task` sem um `wait_for_task_completion`
+	# correspondente vaza a vaga da tarefa no pool, e o engine aborta ao sair
+	# do processo. Recolhemos em `_reap_task`, na entrega do resultado.
+	_tasks[generation] = WorkerThreadPool.add_task(func() -> void:
 		var result: Dictionary = val.validate(payload, reference)
 		deliver.call_deferred(result, generation)
 	)
@@ -152,6 +158,10 @@ func _show_analyzing() -> void:
 
 
 func _on_validation_done(result: Dictionary, generation: int) -> void:
+	# Antes do descarte por geração: uma avaliação superada entrega assim
+	# mesmo, e se a vaga dela não for recolhida aqui não é recolhida nunca.
+	_reap_task(generation)
+
 	if generation != _eval_generation:
 		return   # resultado de uma avaliação antiga — descarta
 
@@ -180,6 +190,34 @@ func _on_validation_done(result: Dictionary, generation: int) -> void:
 	evaluation_completed.emit(num_stars)
 
 
+## Devolve ao WorkerThreadPool a vaga da tarefa desta geração.
+##
+## `add_task` exige um `wait_for_task_completion` para cada id — sem ele a
+## vaga fica presa para sempre e o engine aborta no encerramento do processo.
+## Aqui a tarefa JÁ terminou (é ela quem chamou este caminho), então a espera
+## retorna na hora e não bloqueia quadro nenhum.
+func _reap_task(generation: int) -> void:
+	if not _tasks.has(generation):
+		return
+	var id: int = int(_tasks[generation])
+	_tasks.erase(generation)
+	WorkerThreadPool.wait_for_task_completion(id)
+
+
+## Recolhe o que sobrou ao sair da tela — só as tarefas JÁ concluídas.
+##
+## Uma análise ainda em andamento é deixada de lado de propósito: esperar por
+## ela aqui bloquearia a troca de cena por até 8 segundos, e o usuário que
+## apertou "voltar" no meio da análise é exatamente quem não pode ficar preso.
+## A entrega dela cai num nó liberado e o Godot descarta a chamada sozinho.
+func _exit_tree() -> void:
+	for generation: int in _tasks.keys():
+		var id: int = int(_tasks[generation])
+		if WorkerThreadPool.is_task_completed(id):
+			WorkerThreadPool.wait_for_task_completion(id)
+			_tasks.erase(generation)
+
+
 # ---------- BLOCOS DA TELA ----------
 
 func _fill_score(precision: float, num_stars: int) -> void:
@@ -194,8 +232,27 @@ func _fill_score(precision: float, num_stars: int) -> void:
 
 ## XP e ofensiva são creditados aqui — este é o único ponto do app onde o
 ## usuário efetivamente termina uma execução avaliada.
+##
+## A exceção é o resultado sintético do painel de depuração: ele reproduz a
+## tela inteira, mas não pode creditar XP nem contar como prática. A ofensiva
+## e a precisão média são estatísticas que o trabalho cita — enchê-las de
+## notas inventadas durante um teste de UI as invalidaria sem deixar rastro.
 func _fill_reward(num_stars: int) -> void:
 	_clear(reward_row)
+
+	var sintetico: bool = bool(_last_result.get(DebugValidator.DEBUG_FLAG, false))
+	if sintetico:
+		_last_gained = 0
+		_last_level_up = false
+		var aviso := Label.new()
+		aviso.theme_type_variation = &"Caption"
+		aviso.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		aviso.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		aviso.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		aviso.add_theme_color_override("font_color", DS.DANGER_INK)
+		aviso.text = "RESULTADO SINTÉTICO — nada foi creditado."
+		reward_row.add_child(aviso)
+		return
 
 	var lesson_id: int = _pending_lesson.lesson_id if _pending_lesson else -1
 	var gained: int = 0

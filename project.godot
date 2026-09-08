@@ -35,6 +35,7 @@ GDMPAndroid="*uid://cdvhdf5dmteib"
 Global="*res://Scripts/autoload/Global.gd"
 LessonService="*uid://dkus87hbj6jv4"
 Audio="*res://Scripts/autoload/Audio.gd"
+Debug="*res://Scripts/autoload/Debug.gd"
 
 [debug]
 

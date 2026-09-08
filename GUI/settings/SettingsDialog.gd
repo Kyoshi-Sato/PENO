@@ -37,6 +37,8 @@ var _sound_check: HSIcon
 
 
 func _ready() -> void:
+	self.hide()
+	
 	_build_backend_options()
 	_decorate_erase_button()
 	_decorate_sound_button()

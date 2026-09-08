@@ -18,3 +18,10 @@ export_credentials.cfg
 data_*/
 mono_crash.*.json
 tools/.cache_mediapipe/
+
+# Python bytecode do gerador de sons (tools/gerar_sons.py)
+__pycache__/
+*.pyc
+
+# Cache de bundles baixados do dicionário VLibras (tools/importar_vlibras.py)
+tools/.cache_vlibras/
