@@ -94,8 +94,15 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 			"detected_frames": 0,
 			"total_frames": 0,
 			"avg_confidence": 0.0,
-			"finger_status": {},
-			"hints": ["Nenhum frame com mão detectada"]
+			"finger_status": {
+				"thumb": "MISSING",
+				"index": "MISSING",
+				"middle": "MISSING",
+				"ring": "MISSING",
+				"pinky": "MISSING",
+				"spread": "MISSING"
+			},
+			"hints": ["Nenhuma mão detectada na gravação. Posicione sua mão visível em frente à câmera."]
 		}
 
 	# Inclui metadados do sinal base analisado no resultado da IA
@@ -142,7 +149,7 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 			"group_similarity_pct": l_prec,
 			"detection_coverage": float(l_det) / float(l_tot),
 		}
-	else:
+	elif has_right:
 		var r_dict: Dictionary = ai_result.get("right_hand", {}) as Dictionary
 		var r_prec: float = float(r_dict.get("hand_precision", ai_precision)) * 100.0
 		var r_det: int = int(r_dict.get("detected_frames", det_frames))
@@ -164,18 +171,32 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 	var legacy_ok: bool = bool(legacy_result.get("ok", false))
 
 	var final_precision: float = 0.0
-	if is_ok and legacy_ok:
+	var overall_ok: bool = false
+	var err_msg: String = ""
+
+	if det_frames == 0:
+		# REGRA FUNDAMENTAL: Sem detecção de mãos, o sinal de Libras NÃO pode ser validado nem pontuado
+		final_precision = 0.0
+		overall_ok = false
+		err_msg = "Nenhuma mão detectada na gravação. Posicione sua mão visível em frente à câmera."
+	elif is_ok and legacy_ok:
 		final_precision = (ai_precision * 0.70) + (motion_precision * 0.30)
+		overall_ok = true
 	elif is_ok:
 		# Se apenas a forma da mão foi detectada (ex.: captura focada na mão sem landmarks de pose)
 		final_precision = ai_precision
+		overall_ok = true
 	elif legacy_ok:
-		final_precision = motion_precision
+		# Mão foi detectada mas forma divergiu do gabarito: pontua apenas a fração de movimento corporal
+		final_precision = motion_precision * 0.30
+		overall_ok = false
+		err_msg = "Forma da mão incorreta para o sinal esperado."
 	else:
 		final_precision = 0.0
+		overall_ok = false
+		err_msg = "Não foi possível validar o sinal na gravação."
 
 	final_precision = clampf(final_precision, 0.0, 1.0)
-	var overall_ok: bool = is_ok or legacy_ok
 
 	ai_result["combined_precision"] = final_precision
 	ai_result["hand_shape_weight"] = 0.70
@@ -190,7 +211,7 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 		"details": details,
 		"mirrored": bool(legacy_result.get("mirrored", false)) or (has_left and not has_right),
 		"ok": overall_ok,
-		"error": "" if overall_ok else "Não foi possível validar o sinal na gravação.",
+		"error": err_msg if not overall_ok else "",
 
 		# Carga completa para diagnóstico e telemetria
 		"has_ai": true,

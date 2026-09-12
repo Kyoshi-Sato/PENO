@@ -148,6 +148,9 @@ func populate(legacy_result: Dictionary, ai_result: Dictionary) -> void:
 	_clear_container(_hands_detail_box)
 	_clear_container(_finger_grid)
 
+	var det_frames: int = int(ai_result.get("detected_frames", 0))
+	var is_hand_missing: bool = (det_frames == 0)
+
 	# 1. Dados do Sinal Base e Reconhecimento
 	var sign_name: String = String(ai_result.get("sign_name", ""))
 	var base_letter: String = String(ai_result.get("base_letter", sign_name))
@@ -155,16 +158,22 @@ func populate(legacy_result: Dictionary, ai_result: Dictionary) -> void:
 	_lbl_target_sign.text = base_display
 
 	var letter: String = String(ai_result.get("dominant_letter", ""))
-	var letter_display := letter if not letter.is_empty() else "Não identificado"
-	_lbl_detected_sign.text = "Sinal '%s'" % letter_display
+	if is_hand_missing:
+		_lbl_detected_sign.text = "Nenhuma mão detectada"
+	else:
+		var letter_display := letter if not letter.is_empty() else "Não identificado"
+		_lbl_detected_sign.text = "Sinal '%s'" % letter_display
 
 	# 2. Avaliação de Correspondência
 	var exp_code: String = String(ai_result.get("expected_code", "0000000000"))
 	var dom_code: String = String(ai_result.get("dominant_code", "0000000000"))
-	var is_exact_match: bool = (not letter.is_empty() and letter == base_letter) or (dom_code == exp_code and dom_code != "0000000000")
+	var is_exact_match: bool = not is_hand_missing and ((not letter.is_empty() and letter == base_letter) or (dom_code == exp_code and dom_code != "0000000000"))
 	var ai_prec: float = float(ai_result.get("hand_precision", 0.0)) * 100.0
 
-	if is_exact_match or ai_prec >= 85.0:
+	if is_hand_missing:
+		_lbl_match_badge.text = "❌ Mão Não Detectada"
+		_lbl_match_badge.add_theme_color_override("font_color", DS.DANGER_INK)
+	elif is_exact_match or ai_prec >= 85.0:
 		_lbl_match_badge.text = "🎯 Postura Correta!"
 		_lbl_match_badge.add_theme_color_override("font_color", DS.SUCCESS_INK)
 	elif ai_prec >= 60.0:
@@ -179,7 +188,9 @@ func populate(legacy_result: Dictionary, ai_result: Dictionary) -> void:
 	var has_right: bool = bool(ai_result.get("has_right", false))
 	var has_left: bool = bool(ai_result.get("has_left", false))
 
-	if both_hands:
+	if is_hand_missing or (not has_right and not has_left and not both_hands):
+		_lbl_hands_detected.text = "Mão Avaliada: Nenhuma mão detectada na câmera"
+	elif both_hands:
 		_lbl_hands_detected.text = "Mãos Avaliadas: Ambas as Mãos (Direita + Esquerda)"
 		var r_dict: Dictionary = ai_result.get("right_hand", {}) as Dictionary
 		var l_dict: Dictionary = ai_result.get("left_hand", {}) as Dictionary
@@ -214,10 +225,13 @@ func populate(legacy_result: Dictionary, ai_result: Dictionary) -> void:
 		f_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(f_lbl)
 
-		var st: String = String(finger_status.get(f_key, "OK"))
+		var st: String = String(finger_status.get(f_key, "MISSING" if is_hand_missing else "OK"))
 		var val_lbl := Label.new()
 		val_lbl.theme_type_variation = &"FieldLabel"
-		if st == "OK":
+		if is_hand_missing or st == "MISSING":
+			val_lbl.text = "⚠️ Não detectado"
+			val_lbl.add_theme_color_override("font_color", DS.TEXT_MUTED)
+		elif st == "OK":
 			val_lbl.text = "✅ Correto"
 			val_lbl.add_theme_color_override("font_color", DS.SUCCESS_INK)
 		else:
@@ -229,19 +243,22 @@ func populate(legacy_result: Dictionary, ai_result: Dictionary) -> void:
 
 	# 5. Dicas de Correção
 	var hints: Array = ai_result.get("hints", []) as Array
-	if hints.is_empty() or is_exact_match:
+	if is_hand_missing:
+		_lbl_hints.text = "• Nenhuma mão foi detectada na gravação.\n• Posicione a mão claramente visível no campo da câmera e execute o sinal novamente."
+	elif is_exact_match:
 		_lbl_hints.text = "• Excelente postura! Os dedos e a abertura estão alinhados com o gabarito."
-	else:
+	elif not hints.is_empty():
 		var text := ""
 		for h: Variant in hints:
 			if not text.is_empty():
 				text += "\n"
 			text += "• " + String(h)
 		_lbl_hints.text = text
+	else:
+		_lbl_hints.text = "• Ajuste a postura da mão para alinhar com o gabarito do sinal."
 
 	# 6. Telemetria Técnica e Referência Comparativa
 	var ai_conf: float = float(ai_result.get("avg_confidence", 0.0)) * 100.0
-	var det_frames: int = int(ai_result.get("detected_frames", 0))
 	var tot_frames: int = int(ai_result.get("total_frames", 0))
 	var leg_prec: float = float(legacy_result.get("precision", 0.0)) * 100.0
 

@@ -114,11 +114,19 @@ static func parse_hand_pose(code: String) -> Dictionary:
 
 
 static func get_biomechanical_guidance(detected_code: String, expected_code: String) -> Dictionary:
-	if detected_code.is_empty() or expected_code.is_empty():
+	if detected_code.is_empty() or expected_code.is_empty() or detected_code == "0000000000":
 		return {
 			"match": false,
-			"hints": ["Aguardando mão na câmera..."],
-			"finger_status": {}
+			"similarity": 0.0,
+			"hints": ["Nenhuma mão detectada na câmera. Posicione a mão visível no enquadramento."],
+			"finger_status": {
+				"thumb": "MISSING",
+				"index": "MISSING",
+				"middle": "MISSING",
+				"ring": "MISSING",
+				"pinky": "MISSING",
+				"spread": "MISSING"
+			}
 		}
 
 	var detected := parse_hand_pose(detected_code)
@@ -229,10 +237,12 @@ static func get_biomechanical_guidance(detected_code: String, expected_code: Str
 			break
 
 	# Considera match se for exato, postura W ou alta similaridade sem erro de dedo crítico
-	var is_match := exact_match or w_match or (similarity >= 0.80 and not has_critical_err)
+	var is_match := exact_match or w_match or (similarity >= 0.75 and not has_critical_err)
 
 	if is_match and hints.is_empty():
 		hints = ["PERFEITO! A configuração dos dedos confere com o sinal esperado!"]
+	elif not is_match and hints.is_empty():
+		hints = ["Ajuste a forma dos dedos e a abertura para alinhar com o gabarito."]
 
 	return {
 		"match": is_match,
@@ -242,14 +252,12 @@ static func get_biomechanical_guidance(detected_code: String, expected_code: Str
 	}
 
 
-## Calcula a proximidade / similaridade cinemática contínua entre dois códigos posturais de 10 dígitos.
-## Retorna um valor entre 0.0 (totalmente divergente) e 1.0 (idêntico).
-## Avalia proporcionalmente:
-## - 4 dedos principais (Indicador, Médio, Anelar, Mindinho): 0 a 4 estágios de flexão (60% do peso total)
-## - Polegar (oposição, ponta dobrada, abertura lateral): (25% do peso total)
-## - Aberturas entre dedos (spreads): (15% do peso total)
+## Calcula a proximidade / similaridade cinemática entre dois códigos posturais de 10 dígitos.
+## Avalia com rigor estrito a tolerância anatômica:
+## - Aceita no máximo 1 ou 2 caracteres divergentes, com desvio de ±1 ou ±2 níveis por caractere.
+## - Desvios maiores (> 2 caracteres ou desvio anatômico grave >= 3 níveis) sofrem desconto incisivo.
 static func calculate_posture_similarity(detected_code: String, expected_code: String) -> float:
-	if detected_code.is_empty() or expected_code.is_empty():
+	if detected_code.is_empty() or expected_code.is_empty() or detected_code == "0000000000":
 		return 0.0
 	if detected_code == expected_code:
 		return 1.0
@@ -257,45 +265,51 @@ static func calculate_posture_similarity(detected_code: String, expected_code: S
 	var det := (detected_code + "0000000000").substr(0, 10)
 	var exp_str := (expected_code + "0000000000").substr(0, 10)
 
-	# 1. Quatro Dedos Principais (D4: Mindinho, D3: Anelar, D2: Médio, D1: Indicador)
-	var finger_indices := [0, 2, 4, 6]
-	var finger_sim_sum := 0.0
-	for idx: int in finger_indices:
-		var d_det := det.substr(idx, 1).to_int()
-		var d_exp := exp_str.substr(idx, 1).to_int()
-		var diff := absi(d_det - d_exp)
-		# Variação máxima de flexão é 4 (estendido 0 a fechado 4)
-		finger_sim_sum += 1.0 - (float(diff) / 4.0)
-	var fingers_score := finger_sim_sum / 4.0
+	var num_diff_chars: int = 0
+	var total_level_diff: int = 0
+	var max_level_diff: int = 0
 
-	# 2. Polegar: Oposição (F=8), Ponta Dobrada (P=9), Abertura (A0=7)
-	var f_det := det.substr(8, 1).to_int()
-	var f_exp := exp_str.substr(8, 1).to_int()
-	var p_det := det.substr(9, 1).to_int()
-	var p_exp := exp_str.substr(9, 1).to_int()
-	var a0_det := det.substr(7, 1).to_int()
-	var a0_exp := exp_str.substr(7, 1).to_int()
+	for i in range(10):
+		var d_det: int = det.substr(i, 1).to_int()
+		var d_exp: int = exp_str.substr(i, 1).to_int()
+		var diff: int = absi(d_det - d_exp)
+		if diff > 0:
+			num_diff_chars += 1
+			total_level_diff += diff
+			max_level_diff = maxi(max_level_diff, diff)
 
-	var thumb_score := (
-		(1.0 - float(absi(f_det - f_exp))) +
-		(1.0 - float(absi(p_det - p_exp))) +
-		(1.0 - float(absi(a0_det - a0_exp)))
-	) / 3.0
+	if num_diff_chars == 0:
+		return 1.0
 
-	# 3. Aberturas entre dedos: A3 (Min-Ane=1), A2 (Ane-Med=3), A1 (Med-Ind=5)
-	var a3_det := det.substr(1, 1).to_int()
-	var a3_exp := exp_str.substr(1, 1).to_int()
-	var a2_det := det.substr(3, 1).to_int()
-	var a2_exp := exp_str.substr(3, 1).to_int()
-	var a1_det := det.substr(5, 1).to_int()
-	var a1_exp := exp_str.substr(5, 1).to_int()
+	# Faixa de tolerância: 1 ou 2 caracteres divergentes com no máximo 1 ou 2 níveis de diferença
+	if num_diff_chars <= 2 and max_level_diff <= 2:
+		if num_diff_chars == 1:
+			if total_level_diff == 1:
+				return 0.90
+			else: # total_level_diff == 2
+				return 0.78
+		else: # num_diff_chars == 2
+			if total_level_diff == 2: # 1 + 1
+				return 0.75
+			elif total_level_diff == 3: # 1 + 2
+				return 0.65
+			else: # 2 + 2
+				return 0.55
 
-	var spreads_score := (
-		(1.0 - float(absi(a3_det - a3_exp))) +
-		(1.0 - float(absi(a2_det - a2_exp))) +
-		(1.0 - float(absi(a1_det - a1_exp)))
-	) / 3.0
+	# Para desvios além de 1-2 caracteres ou além de 1-2 níveis:
+	# Aplica desconto incisivo por forma incorreta
+	var base_score: float = 0.0
+	if num_diff_chars == 3 and max_level_diff <= 2:
+		base_score = 0.35 - (float(total_level_diff - 3) * 0.05)
+	elif num_diff_chars == 4 and max_level_diff <= 2:
+		base_score = 0.18 - (float(total_level_diff - 4) * 0.03)
+	else:
+		var char_penalty: float = float(num_diff_chars) * 0.10
+		var level_penalty: float = float(total_level_diff) * 0.03
+		base_score = maxf(0.0, 0.40 - char_penalty - level_penalty)
 
-	# Ponderação anatômica: Dedos 60%, Polegar 25%, Aberturas 15%
-	var total_sim := (fingers_score * 0.60) + (thumb_score * 0.25) + (spreads_score * 0.15)
-	return clampf(total_sim, 0.0, 1.0)
+	# Se algum dedo teve erro anatômico grosseiro (diferença de 3 ou 4 níveis, ex: estendido vs punho fechado), derruba
+	if max_level_diff >= 3:
+		base_score *= 0.35
+
+	return clampf(base_score, 0.0, 1.0)

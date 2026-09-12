@@ -381,3 +381,91 @@ func test_weighted_precision_70_hand_30_motion() -> void:
 	assert_eq(float(res["ai_result"]["motion_position_weight"]), 0.30, "Peso do movimento deve ser 30%")
 
 
+func test_no_hands_detected_handling() -> void:
+	# 1. Testa o classificador com frames sem mãos (hands: [])
+	var empty_frames: Array = [
+		{"timestamp_ms": 0, "hands": []},
+		{"timestamp_ms": 33, "hands": []}
+	]
+	var classifier: HandShapeClassifier = HandShapeClassifierScript.new()
+	var ai_res: Dictionary = classifier.evaluate_recording(empty_frames, "A")
+
+	assert_false(bool(ai_res.get("ok", true)), "Quando não há mãos, ok deve ser false")
+	assert_eq(int(ai_res.get("detected_frames", -1)), 0, "Frames detectados deve ser 0")
+	assert_eq(float(ai_res.get("hand_precision", -1.0)), 0.0, "Precisão da mão deve ser 0.0")
+	assert_eq(String(ai_res.get("dominant_hand", "")), "None", "Mão dominante deve ser None")
+
+	var f_status: Dictionary = ai_res.get("finger_status", {}) as Dictionary
+	for k: String in ["thumb", "index", "middle", "ring", "pinky", "spread"]:
+		assert_eq(String(f_status.get(k, "")), "MISSING", "Status do dedo %s deve ser MISSING quando ausente" % k)
+
+	# 2. Testa o ParallelSignValidator com gravação sem mãos
+	var ParallelSignValidatorScript := preload("res://Scripts/ParallelSignValidator.gd")
+	var val: ParallelSignValidator = ParallelSignValidatorScript.new()
+	var val_res: Dictionary = val.validate({"frames": empty_frames, "nome_sinal": "A"}, {"frames": empty_frames, "nome_sinal": "A"})
+
+	assert_false(bool(val_res.get("ok", true)), "Validação deve falhar com ok=false quando não há mãos")
+	assert_eq(float(val_res.get("precision", -1.0)), 0.0, "Precisão final deve ser estritamente 0.0")
+	assert_true(String(val_res.get("error", "")).contains("Nenhuma mão detectada"), "Mensagem de erro deve alertar sobre ausência de mãos")
+
+	# 3. Testa a exibição no ComparisonCard quando nenhuma mão foi detectada
+	var ComparisonCardScript := preload("res://GUI/components/ComparisonCard.gd")
+	var card: PanelContainer = ComparisonCardScript.new()
+	add_child_autofree(card)
+	card.populate(val_res.get("legacy_result", {}) as Dictionary, val_res.get("ai_result", {}) as Dictionary)
+
+	assert_eq(card._lbl_match_badge.text, "❌ Mão Não Detectada", "Badge deve ser Mão Não Detectada")
+	assert_eq(card._lbl_hands_detected.text, "Mão Avaliada: Nenhuma mão detectada na câmera", "Mão avaliada não deve inventar Mão Direita")
+	assert_eq(card._lbl_detected_sign.text, "Nenhuma mão detectada", "Sinal reconhecido deve informar ausência de mão")
+	assert_true(card._lbl_hints.text.contains("Nenhuma mão foi detectada"), "Dicas não devem elogiar postura quando a mão está ausente")
+	assert_false(card._lbl_hints.text.contains("Excelente postura"), "Jamais deve elogiar postura sem mãos presentes")
+
+	# Verifica se nenhum dedo ficou com 'Correto'
+	for row: Node in card._finger_grid.get_children():
+		var row_box := row as HBoxContainer
+		if row_box != null and row_box.get_child_count() >= 2:
+			var val_lbl := row_box.get_child(1) as Label
+			if val_lbl != null:
+				assert_eq(val_lbl.text, "⚠️ Não detectado", "Dedo deve estar como Não detectado quando ausente")
+				assert_ne(val_lbl.text, "✅ Correto", "Dedo não pode ser marcado como Correto sem mãos")
+
+
+func test_strict_shape_scoring_tolerances() -> void:
+	var code_v := "4141000110"  # V
+
+	# 1. Exato: 1.0 (100%)
+	assert_eq(HandBiomechanicalGuidanceScript.calculate_posture_similarity(code_v, code_v), 1.0)
+
+	# 2. Ausente / Zerado: 0.0
+	assert_eq(HandBiomechanicalGuidanceScript.calculate_posture_similarity("0000000000", code_v), 0.0)
+
+	# 3. Tolerância de 1 caractere, nível 1: ~0.90
+	var sim_1_char_1_lvl := HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141000100", code_v)
+	assert_almost_eq(sim_1_char_1_lvl, 0.90, 0.01, "1 caractere com nível 1 deve dar 0.90")
+
+	# 4. Tolerância de 1 caractere, nível 2: ~0.78
+	var sim_1_char_2_lvl := HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141002110", code_v)
+	assert_almost_eq(sim_1_char_2_lvl, 0.78, 0.01, "1 caractere com nível 2 deve dar 0.78")
+
+	# 5. Tolerância de 2 caracteres, nível 1+1: ~0.75
+	var sim_2_char_1_1 := HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141000000", code_v)
+	assert_almost_eq(sim_2_char_1_1, 0.75, 0.01, "2 caracteres com nível 1+1 deve dar 0.75")
+
+	# 6. Tolerância de 2 caracteres, nível 1+2: ~0.65
+	var sim_2_char_1_2 := HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141002100", code_v)
+	assert_almost_eq(sim_2_char_1_2, 0.65, 0.01, "2 caracteres com nível 1+2 deve dar 0.65")
+
+	# 7. Tolerância de 2 caracteres, nível 2+2: ~0.55
+	var sim_2_char_2_2 := HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141202110", code_v)
+	assert_almost_eq(sim_2_char_2_2, 0.55, 0.01, "2 caracteres com nível 2+2 deve dar 0.55")
+
+	# 8. Desconto Incisivo: 3 caracteres divergentes deve derrubar para <= 0.35
+	var sim_3_chars := HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141202000", code_v)
+	assert_true(sim_3_chars <= 0.35, "3 caracteres divergentes deve sofrer desconto incisivo (<= 0.35)")
+
+	# 9. Erro anatômico grave em 1 dedo (diferença de 4 níveis, ex: dedo aberto 0 virou fechado 4):
+	# V com indicador fechado: "4141004110"
+	var sim_gross_err := HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141004110", code_v)
+	assert_true(sim_gross_err <= 0.10, "Erro grosseiro de nível 4 em um dedo deve derrubar a pontuação para <= 0.10")
+
+

@@ -171,7 +171,18 @@ func classify_hand(landmarks: Array, timestamp_ms: float = -1.0, is_left: bool =
 			"raw_code": "0000000000",
 			"confidence": 0.0,
 			"top_letter": "",
-			"guidance": {"match": false, "hints": ["Mão não detectada"], "finger_status": {}}
+			"guidance": {
+				"match": false,
+				"hints": ["Nenhuma mão detectada na câmera."],
+				"finger_status": {
+					"thumb": "MISSING",
+					"index": "MISSING",
+					"middle": "MISSING",
+					"ring": "MISSING",
+					"pinky": "MISSING",
+					"spread": "MISSING"
+				}
+			}
 		}
 
 	# Mão esquerda é espelhada para corresponder ao manifold canônico de treinamento
@@ -377,6 +388,33 @@ func evaluate_recording(frames: Array, expected_code: String, expected_left_code
 	var has_left: bool = left_channel.detected_frames > 0
 	var both_hands: bool = has_right and has_left
 
+	if not has_right and not has_left:
+		return {
+			"ok": false,
+			"has_right": false,
+			"has_left": false,
+			"both_hands_detected": false,
+			"dominant_hand": "None",
+			"right_hand": right_res,
+			"left_hand": left_res,
+			"hand_precision": 0.0,
+			"detected_frames": 0,
+			"total_frames": frames.size(),
+			"dominant_code": "0000000000",
+			"expected_code": expected_clean_right,
+			"dominant_letter": "",
+			"avg_confidence": 0.0,
+			"finger_status": {
+				"thumb": "MISSING",
+				"index": "MISSING",
+				"middle": "MISSING",
+				"ring": "MISSING",
+				"pinky": "MISSING",
+				"spread": "MISSING"
+			},
+			"hints": ["Nenhuma mão detectada na gravação. Posicione sua mão visível em frente à câmera."]
+		}
+
 	# Determina a mão primária / dominante ou calcula a média combinada se ambas foram ativas
 	var primary_res: Dictionary = right_res
 	var dominant_hand: String = "None"
@@ -438,8 +476,15 @@ func _compile_channel_results(ch: HandChannelState, expected_clean: String, tota
 			"dominant_letter": "",
 			"avg_confidence": 0.0,
 			"hand_precision": 0.0,
-			"finger_status": {},
-			"hints": []
+			"finger_status": {
+				"thumb": "MISSING",
+				"index": "MISSING",
+				"middle": "MISSING",
+				"ring": "MISSING",
+				"pinky": "MISSING",
+				"spread": "MISSING"
+			},
+			"hints": ["Nenhuma mão detectada na gravação. Posicione sua mão visível em frente à câmera."]
 		}
 
 	var best_freq := 0
@@ -473,12 +518,8 @@ func _compile_channel_results(ch: HandChannelState, expected_clean: String, tota
 	var dominant_sim := HandBiomechanicalGuidanceScript.calculate_posture_similarity(most_frequent_code, expected_clean)
 
 	# A precisão oficial da mão combina a postura sustentada dominante (70%) e o ápice dos frames lidos (30%)
-	var hand_precision := maxf(dominant_sim, (dominant_sim * 0.70) + (top_sim_avg * 0.30))
-
-	# Se a forma dominante ou a média do ápice atingiu alta similaridade, garante aprovação merecida
+	var hand_precision := (dominant_sim * 0.70) + (top_sim_avg * 0.30)
 	var final_guidance := HandBiomechanicalGuidanceScript.get_biomechanical_guidance(most_frequent_code, expected_clean)
-	if bool(final_guidance.get("match", false)) or dominant_sim >= 0.85:
-		hand_precision = maxf(hand_precision, 0.88)
 
 	var closest_letter := HandBiomechanicalGuidanceScript.get_closest_letter(most_frequent_code)
 
