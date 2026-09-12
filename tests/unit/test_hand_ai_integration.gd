@@ -348,3 +348,36 @@ func test_mobile_stride_optimization() -> void:
 	assert_eq(int(eval_res.get("detected_frames", 0)), 30, "Stride para >60 frames deve processar 30 inferências leves")
 
 
+class MockMotionValidator extends SignValidator:
+	var fixed_precision: float = 0.80
+	func validate(_u: Dictionary, _r: Dictionary) -> Dictionary:
+		return {
+			"ok": true,
+			"precision": fixed_precision,
+			"global_similarity_pct": fixed_precision * 100.0,
+			"details": {"Pose (corpo)": {"group_similarity_pct": 80.0}}
+		}
+
+
+func test_weighted_precision_70_hand_30_motion() -> void:
+	var ParallelSignValidatorScript := preload("res://Scripts/ParallelSignValidator.gd")
+	var val: ParallelSignValidator = ParallelSignValidatorScript.new()
+	var mock := MockMotionValidator.new()
+	mock.fixed_precision = 0.80
+	val.legacy_validator = mock
+
+	var dummy_lms: Array = []
+	for i in range(21):
+		dummy_lms.append({"x": 0.5 + float(i) * 0.01, "y": 0.5 + float(i) * 0.01, "z": 0.0})
+	var frames: Array = [{"timestamp_ms": 100, "hands": [{"handedness": "Right", "landmarks": dummy_lms}]}]
+
+	var res := val.validate({"frames": frames, "nome_sinal": "A"}, {"frames": frames, "nome_sinal": "A"})
+	var ai_prec: float = float(res["ai_result"]["hand_precision"])
+	var motion_prec: float = 0.80
+	var expected_combined := (ai_prec * 0.70) + (motion_prec * 0.30)
+
+	assert_almost_eq(float(res["precision"]), expected_combined, 0.001, "A precisão deve ser exatamente 70% forma + 30% movimento")
+	assert_eq(float(res["ai_result"]["hand_shape_weight"]), 0.70, "Peso da forma deve ser 70%")
+	assert_eq(float(res["ai_result"]["motion_position_weight"]), 0.30, "Peso do movimento deve ser 30%")
+
+

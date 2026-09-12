@@ -158,15 +158,39 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 		if leg_det.has("Pose (corpo)"):
 			details["Pose (corpo)"] = leg_det["Pose (corpo)"]
 
-	# 4. Retorna o contrato oficial alimentado pela IA + telemetria comparativa
+	# 4. Cálculo da Precisão Ponderada:
+	# 70% Forma da Mão (Rede Neural IA) + 30% Movimento e Posição Corporal (Pose / DTW)
+	var motion_precision: float = float(legacy_result.get("precision", 0.0))
+	var legacy_ok: bool = bool(legacy_result.get("ok", false))
+
+	var final_precision: float = 0.0
+	if is_ok and legacy_ok:
+		final_precision = (ai_precision * 0.70) + (motion_precision * 0.30)
+	elif is_ok:
+		# Se apenas a forma da mão foi detectada (ex.: captura focada na mão sem landmarks de pose)
+		final_precision = ai_precision
+	elif legacy_ok:
+		final_precision = motion_precision
+	else:
+		final_precision = 0.0
+
+	final_precision = clampf(final_precision, 0.0, 1.0)
+	var overall_ok: bool = is_ok or legacy_ok
+
+	ai_result["combined_precision"] = final_precision
+	ai_result["hand_shape_weight"] = 0.70
+	ai_result["motion_position_weight"] = 0.30
+	ai_result["motion_precision"] = motion_precision
+
+	# 5. Retorna o contrato oficial alimentado pela média ponderada + telemetria comparativa
 	return {
 		# Campos oficiais consumidos por FeedbackState, estrelas, anel e progressão
-		"precision": ai_precision,
-		"global_similarity_pct": ai_precision * 100.0,
+		"precision": final_precision,
+		"global_similarity_pct": final_precision * 100.0,
 		"details": details,
 		"mirrored": bool(legacy_result.get("mirrored", false)) or (has_left and not has_right),
-		"ok": is_ok,
-		"error": "" if is_ok else "Não foi possível detectar a postura das mãos na gravação.",
+		"ok": overall_ok,
+		"error": "" if overall_ok else "Não foi possível validar o sinal na gravação.",
 
 		# Carga completa para diagnóstico e telemetria
 		"has_ai": true,

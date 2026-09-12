@@ -28,10 +28,11 @@ extends Control
 const _WARM_VISION_TASK := preload("res://GUI/vision/VisionTask.gd")
 const _WARM_HOLISTIC := preload(
 	"res://GUI/vision/holistic_landmarker/HolisticLandmarker.gd")
+const HandShapeClassifierScript := preload("res://Scripts/HandShapeClassifier.gd")
 
 ## Tempo mínimo em tela. Se o aquecimento terminar antes, ainda esperamos —
 ## um splash que pisca por 80 ms é pior do que nenhum.
-const MIN_DURATION := 1.1
+const MIN_DURATION := 1.2
 
 @onready var bar: ProgressBar = %Bar
 @onready var lbl_status: Label = %StatusLabel
@@ -40,24 +41,55 @@ const MIN_DURATION := 1.1
 
 func _ready() -> void:
 	bar.value = 0.0
-	lbl_status.text = "Preparando…"
+	lbl_status.text = "Iniciando HandSign…"
 	Motion.fade_in(brand, DS.DUR_SLOW, 0.0)
 	_boot()
 
 
 func _boot() -> void:
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("start_timer"):
+		p.start_timer("APP_STARTUP_BOOT")
+
 	var started := Time.get_ticks_msec()
 
+	# 1. Carregamento de Cenas e Mascote/Avatar 3D
+	lbl_status.text = "Carregando interface e avatar 3D…"
 	var scenes: Array[String] = [
 		Global.MAIN_SCENE, Global.MAP_SCENE,
 		Global.PROGRESS_SCENE, Global.LESSON_SCENE,
 	]
 
 	for i in range(scenes.size()):
+		if p != null and p.has_method("start_timer"):
+			p.start_timer("PRELOAD_SCENE_%d" % i)
 		await Global.preload_scene(scenes[i])
-		Motion.fill_bar(bar, float(i + 1) / float(scenes.size()), DS.DUR_FAST)
+		if p != null and p.has_method("end_timer"):
+			p.end_timer("PRELOAD_SCENE_%d" % i, {"path": scenes[i]})
+		Motion.fill_bar(bar, float(i + 1) * 0.15, DS.DUR_FAST)
 
-	lbl_status.text = "Tudo pronto"
+	# 2. Inicialização do Motor Neural de IA (HandShapeClassifier)
+	lbl_status.text = "Inicializando IA e biomecânica…"
+	if p != null and p.has_method("start_timer"):
+		p.start_timer("WARM_AI_NEURAL_ENGINE")
+	await get_tree().process_frame
+	var _shared := HandShapeClassifierScript.get_shared_engine()
+	if p != null and p.has_method("end_timer"):
+		p.end_timer("WARM_AI_NEURAL_ENGINE", {"classes": _shared.labels.size() if "labels" in _shared else 0})
+	Motion.fill_bar(bar, 0.85, DS.DUR_FAST)
+
+	# 3. Pré-busca do Catálogo de Lições
+	lbl_status.text = "Sincronizando catálogo…"
+	if p != null and p.has_method("start_timer"):
+		p.start_timer("PREFETCH_CATALOG")
+	LessonService.fetch_catalog()
+	if p != null and p.has_method("end_timer"):
+		p.end_timer("PREFETCH_CATALOG")
+	Motion.fill_bar(bar, 1.0, DS.DUR_FAST)
+
+	lbl_status.text = "Tudo pronto!"
+	if p != null and p.has_method("end_timer"):
+		p.end_timer("APP_STARTUP_BOOT", {"status": "SUCCESS"})
 
 	# Completa o tempo mínimo antes de sair.
 	var elapsed := float(Time.get_ticks_msec() - started) / 1000.0

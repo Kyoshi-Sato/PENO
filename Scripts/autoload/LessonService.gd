@@ -27,12 +27,14 @@ const LessonB := preload("res://Scripts/Lesson.gd")
 
 signal lesson_loaded(lesson_id: int, lesson: Lesson)
 signal lesson_failed(lesson_id: int, error: String)
+signal lesson_progress(lesson_id: int, step_name: String, percent: float)
 
 signal catalog_loaded(catalog: Array)
 signal catalog_failed(error: String)
 
 @export var base_url: String = "https://api.ciclicainteractive.com"
 @export var cache_dir: String = "user://anim_cache/"
+const LESSON_CACHE_DIR := "user://lesson_cache/"
 
 ## Carregada em _ready a partir de PENO_API_KEY (env) ou res://secrets.cfg
 ## (gitignored — veja secrets.cfg.example). Nunca commitar a chave no código:
@@ -54,6 +56,7 @@ const DEBUG_CATALOG: Array[Dictionary] = [
 
 func _ready() -> void:
 	api_key = _load_api_key()
+	_ensure_cache_dirs()
 
 
 func _load_api_key() -> String:
@@ -78,9 +81,37 @@ func fetch_lesson(lesson_id: int, on_loaded: Callable = Callable(), on_failed: C
 		push_warning("Requisição já em andamento para lição: %d" % lesson_id)
 		return
 
-	_ensure_cache_dir()
+	_ensure_cache_dirs()
+
+	# 1. Verifica cache local no disco para carregamento instantâneo (< 50ms)
+	var cache_path := LESSON_CACHE_DIR.path_join("lesson_%d.json" % lesson_id)
+	if FileAccess.file_exists(cache_path):
+		_prof_start("LESSON_CACHE_READ_%d" % lesson_id)
+		lesson_progress.emit(lesson_id, "Carregando lição do cache local...", 0.25)
+		var f := FileAccess.open(cache_path, FileAccess.READ)
+		if f != null:
+			var cached_text := f.get_as_text()
+			f.close()
+			var parsed_cached: Variant = JSON.parse_string(cached_text)
+			if parsed_cached is Dictionary and (parsed_cached as Dictionary).has("sinais"):
+				lesson_progress.emit(lesson_id, "Processando dados do sinal...", 0.65)
+				var cached_lesson := _build_lesson(lesson_id, parsed_cached as Dictionary)
+				if cached_lesson != null:
+					_prof_end("LESSON_CACHE_READ_%d" % lesson_id, {"source": "disk_cache", "status": "HIT"})
+					lesson_progress.emit(lesson_id, "Lição pronta!", 1.0)
+					lesson_loaded.emit(lesson_id, cached_lesson)
+					if on_loaded.is_valid():
+						on_loaded.call(cached_lesson)
+					return
+		_prof_end("LESSON_CACHE_READ_%d" % lesson_id, {"status": "CORRUPT_FALLBACK_TO_NETWORK"})
+
+	# 2. Se não estiver em cache, inicia requisição HTTP com timeout protetor de 15s
+	_prof_start("LESSON_HTTP_FETCH_%d" % lesson_id)
+	lesson_progress.emit(lesson_id, "Conectando ao servidor...", 0.20)
 
 	var req := HTTPRequest.new()
+	# Timeout configurado para 15 segundos evita congelamento infinito
+	req.timeout = 15.0
 	add_child(req)
 
 	_pending_lessons[lesson_id] = {
@@ -94,6 +125,7 @@ func fetch_lesson(lesson_id: int, on_loaded: Callable = Callable(), on_failed: C
 	var url := "%s/exercicio/%d" % [base_url, lesson_id]
 	var err := req.request(url, _build_headers(), HTTPClient.METHOD_GET)
 	if err != OK:
+		_prof_end("LESSON_HTTP_FETCH_%d" % lesson_id, {"error": err, "status": "REQUEST_START_FAILED"})
 		var on_failed_cb: Callable = _pending_lessons[lesson_id]["on_failed"]
 		_cleanup_lesson(lesson_id)
 		_emit_lesson_fail(lesson_id, "Falha ao iniciar requisição (erro %d)" % err, on_failed_cb)
@@ -107,9 +139,13 @@ func _on_lesson_response(_result: int, code: int, _headers: PackedStringArray, b
 	var on_failed: Callable = _pending_lessons[lesson_id]["on_failed"]
 	_cleanup_lesson(lesson_id)
 
+	_prof_end("LESSON_HTTP_FETCH_%d" % lesson_id, {"http_code": code, "bytes": body.size()})
+
 	if code != 200:
-		_emit_lesson_fail(lesson_id, "HTTP %d ao buscar lição %d" % [code, lesson_id], on_failed)
+		_emit_lesson_fail(lesson_id, "HTTP %d ao buscar lição %d (verifique conexão)" % [code, lesson_id], on_failed)
 		return
+
+	lesson_progress.emit(lesson_id, "Dados recebidos, processando lição...", 0.50)
 
 	var text := body.get_string_from_utf8()
 	var parsed: Variant = JSON.parse_string(text)
@@ -122,11 +158,20 @@ func _on_lesson_response(_result: int, code: int, _headers: PackedStringArray, b
 		_emit_lesson_fail(lesson_id, "Campo 'sinais' ausente ou inválido na resposta", on_failed)
 		return
 
+	# Salva no cache local para uso offline e carregamento instantâneo subsequente
+	var cache_path := LESSON_CACHE_DIR.path_join("lesson_%d.json" % lesson_id)
+	var f_cache := FileAccess.open(cache_path, FileAccess.WRITE)
+	if f_cache != null:
+		f_cache.store_string(text)
+		f_cache.close()
+
+	lesson_progress.emit(lesson_id, "Processando animações 3D e postura...", 0.80)
 	var lesson := _build_lesson(lesson_id, payload)
 	if lesson == null:
 		_emit_lesson_fail(lesson_id, "Falha ao montar AnimationLibrary da lição %d" % lesson_id, on_failed)
 		return
 
+	lesson_progress.emit(lesson_id, "Lição pronta!", 1.0)
 	lesson_loaded.emit(lesson_id, lesson)
 	if on_loaded.is_valid():
 		on_loaded.call(lesson)
@@ -433,16 +478,45 @@ func _emit_catalog_fail(msg: String, on_failed: Callable) -> void:
 		on_failed.call(msg)
 
 
+func _ensure_cache_dirs() -> void:
+	_ensure_cache_dir()
+	if not DirAccess.dir_exists_absolute(LESSON_CACHE_DIR):
+		var err := DirAccess.make_dir_recursive_absolute(LESSON_CACHE_DIR)
+		if err != OK:
+			push_warning("Falha ao criar lesson cache dir %s (erro %d)" % [LESSON_CACHE_DIR, err])
+
+
+func _prof_start(tag: String) -> void:
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("start_timer"):
+		p.start_timer(tag)
+
+
+func _prof_end(tag: String, details: Dictionary = {}) -> void:
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("end_timer"):
+		p.end_timer(tag, details)
+
+
 func clear_cache() -> void:
-	if not DirAccess.dir_exists_absolute(cache_dir):
-		return
-	var dir := DirAccess.open(cache_dir)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while fname != "":
-		if not dir.current_is_dir():
-			dir.remove(fname)
-		fname = dir.get_next()
-	dir.list_dir_end()
+	if DirAccess.dir_exists_absolute(cache_dir):
+		var dir := DirAccess.open(cache_dir)
+		if dir != null:
+			dir.list_dir_begin()
+			var fname := dir.get_next()
+			while fname != "":
+				if not dir.current_is_dir():
+					dir.remove(fname)
+				fname = dir.get_next()
+			dir.list_dir_end()
+
+	if DirAccess.dir_exists_absolute(LESSON_CACHE_DIR):
+		var dir_l := DirAccess.open(LESSON_CACHE_DIR)
+		if dir_l != null:
+			dir_l.list_dir_begin()
+			var fname_l := dir_l.get_next()
+			while fname_l != "":
+				if not dir_l.current_is_dir():
+					dir_l.remove(fname_l)
+				fname_l = dir_l.get_next()
+			dir_l.list_dir_end()

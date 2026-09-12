@@ -32,6 +32,7 @@ driver/enable_input=true
 
 MediaPipeExternalFiles="*uid://dsyuq4kjrnbs4"
 GDMPAndroid="*uid://cdvhdf5dmteib"
+Profiler="*res://Scripts/autoload/Profiler.gd"
 Global="*res://Scripts/autoload/Global.gd"
 LessonService="*uid://dkus87hbj6jv4"
 Audio="*res://Scripts/autoload/Audio.gd"

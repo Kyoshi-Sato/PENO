@@ -34,6 +34,9 @@ var _sign_stars: Array[int] = []
 @onready var step_indicator: StepIndicator = %StepIndicator
 @onready var camera_dialog: CameraSelectorDialog = $CameraSelectorDialog
 
+const LoadingOverlayScript := preload("res://GUI/components/LoadingOverlay.gd")
+var _loading_overlay: LoadingOverlay = null
+
 var btn_back: IconButton
 var btn_settings: IconButton
 
@@ -89,6 +92,14 @@ func _ready() -> void:
 	recording.visible = false
 	feedback.visible = false
 
+	# Overlay de carregamento estilizado
+	_loading_overlay = LoadingOverlayScript.new()
+	add_child(_loading_overlay)
+	_loading_overlay.set_progress("Iniciando exercício...", 0.10)
+
+	if not LessonService.lesson_progress.is_connected(_on_lesson_progress):
+		LessonService.lesson_progress.connect(_on_lesson_progress)
+
 	# Pré-seleciona a melhor câmera disponível. Em web/mobile pode levar
 	# alguns frames pro CameraServer popular feeds — então fazemos call_deferred.
 	call_deferred("_auto_select_best_camera")
@@ -97,17 +108,41 @@ func _ready() -> void:
 	# via logcat: câmeras enumeradas, nenhuma selecionada). Retry por evento:
 	CameraServer.camera_feed_added.connect(_on_camera_feed_added)
 
+	_load_current_lesson()
+
+
+func _load_current_lesson() -> void:
 	var lesson_id := debug_lesson_id
 	if lesson_id < 0:
 		lesson_id = Global.current_lesson_id
 	if lesson_id < 0:
+		if _loading_overlay != null:
+			_loading_overlay.show_error("Nenhuma lição selecionada.", Callable(), _on_back)
 		push_error("Nenhuma lesson_id definida")
 		return
+
+	if _loading_overlay != null:
+		_loading_overlay.reset_loading("Carregando Exercício %d" % lesson_id)
+		_loading_overlay.visible = true
+		_loading_overlay.modulate.a = 1.0
+
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("start_timer"):
+		p.start_timer("LESSON_SCREEN_LOAD_%d" % lesson_id)
 
 	LessonService.fetch_lesson(lesson_id, _on_lesson_loaded, _on_lesson_failed)
 
 
+func _on_lesson_progress(_lid: int, step_name: String, percent: float) -> void:
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress(step_name, percent)
+
+
 func _on_lesson_loaded(loaded: Lesson) -> void:
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("end_timer"):
+		p.end_timer("LESSON_SCREEN_LOAD_%d" % loaded.lesson_id, {"status": "SUCCESS"})
+
 	lesson = loaded
 	current_sign_index = 0
 	_sign_stars.clear()
@@ -120,9 +155,28 @@ func _on_lesson_loaded(loaded: Lesson) -> void:
 	state_machine.current_lesson = lesson
 	state_machine.start()
 
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Lição carregada!", 1.0)
+		var t := create_tween()
+		t.tween_property(_loading_overlay, "modulate:a", 0.0, DS.DUR_FAST)
+		t.finished.connect(func() -> void:
+			if is_instance_valid(_loading_overlay):
+				_loading_overlay.visible = false
+		)
+
 
 func _on_lesson_failed(error: String) -> void:
 	push_error("Falha ao carregar lição: %s" % error)
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("log_event"):
+		p.log_event("LESSON_ERROR", error)
+
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.show_error(
+			"Não foi possível carregar a lição:\n%s\n\nVerifique sua conexão ou tente novamente." % error,
+			_load_current_lesson,
+			_on_back
+		)
 
 
 # ---------- CÂMERA ----------
