@@ -90,6 +90,7 @@ var render_timestamp_tolerance_us: int = 5000  # 5ms
 var _last_render_at_ms: int = 0
 
 func _ready() -> void:
+	running_mode = MediaPipeVisionTask.RUNNING_MODE_LIVE_STREAM
 	super()
 	# Trocar o backend em Configurações no meio de uma lição refaz o grafo
 	# aqui mesmo — sem isso a escolha só valeria na próxima abertura do app.
@@ -98,6 +99,20 @@ func _ready() -> void:
 	capture_timer.one_shot = true
 	add_child(capture_timer)
 	capture_timer.timeout.connect(_on_capture_timeout)
+
+
+## Garante que o runner de Live Stream do MediaPipe está pronto antes de iniciar o exercício.
+func ensure_task_initialized() -> void:
+	if not _task_initialized:
+		running_mode = MediaPipeVisionTask.RUNNING_MODE_LIVE_STREAM
+		_init_task()
+
+
+func _ensure_monitoring_feeds() -> void:
+	if not CameraServer.monitoring_feeds:
+		CameraServer.monitoring_feeds = true
+	_initialize_camera_extension()
+
 
 func _on_inference_backend_changed(_backend: Global.InferenceBackend) -> void:
 	_init_task()
@@ -163,8 +178,7 @@ func resume_camera() -> void:
 ## position: "front" | "back" | "unspecified"
 func list_available_cameras() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	if not CameraServer.monitoring_feeds:
-		CameraServer.monitoring_feeds = true
+	_ensure_monitoring_feeds()
 	var feeds: Array[CameraFeed] = CameraServer.feeds()
 	for feed in feeds:
 		var pos_str := "unspecified"
@@ -311,18 +325,37 @@ func is_camera_streaming() -> bool:
 
 ## Aguarda de forma assíncrona a câmera estar pronta e entregando quadros.
 ## Possui timeout seguro para não travar em ambientes sem câmera (ex: testes unitários ou permissão negada).
-func wait_for_camera_ready(timeout_seconds: float = 4.0) -> bool:
+func wait_for_camera_ready(timeout_seconds: float = 6.0) -> bool:
 	if is_camera_streaming():
 		return true
-	var available := list_available_cameras()
-	if available.is_empty():
+
+	_ensure_monitoring_feeds()
+
+	var deadline_ms: int = Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+
+	# 1. Aguarda feeds serem descobertos pelo sistema operacional
+	# Em sistemas Windows/Android a enumeração de hardware pode demorar até 1.5 - 2s
+	while CameraServer.feeds().is_empty() and Time.get_ticks_msec() < deadline_ms:
+		await get_tree().process_frame
+
+	if CameraServer.feeds().is_empty():
+		push_warning("[HolisticLandmarker] Nenhuma câmera física encontrada após aguardar enumeração")
 		return false
 
-	var timed_out := false
-	var timer := get_tree().create_timer(timeout_seconds)
-	timer.timeout.connect(func() -> void: timed_out = true)
+	# 2. Seleciona e inicia a melhor câmera se ainda não tiver feito
+	if camera_feed == null:
+		var best_id: int = pick_best_camera_id()
+		if best_id >= 0:
+			if not start_camera_with_feed(best_id):
+				push_warning("[HolisticLandmarker] Falha ao iniciar câmera id=%d" % best_id)
+				return false
+		else:
+			return false
+	elif not camera_feed.feed_is_active:
+		resume_camera()
 
-	while not is_camera_streaming() and not timed_out:
+	# 3. Aguarda a câmera começar a entregar quadros reais (is_camera_ready == true)
+	while not is_camera_streaming() and Time.get_ticks_msec() < deadline_ms:
 		await get_tree().process_frame
 
 	return is_camera_streaming()

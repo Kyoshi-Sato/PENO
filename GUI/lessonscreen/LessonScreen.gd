@@ -157,7 +157,7 @@ func _on_lesson_loaded(loaded: Lesson) -> void:
 	_sign_stars.resize(lesson.sinais.size())
 
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Preparando animações do avatar 3D...", 0.60)
+		_loading_overlay.set_progress("Preparando animações do avatar 3D...", 0.40)
 
 	if animation_player.has_animation_library(LIBRARY_NAME):
 		animation_player.remove_animation_library(LIBRARY_NAME)
@@ -165,18 +165,27 @@ func _on_lesson_loaded(loaded: Lesson) -> void:
 
 	# Pré-aquecimento do classificador de IA da forma da mão (TCC)
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Carregando modelo neural de IA...", 0.75)
+		_loading_overlay.set_progress("Carregando modelo neural de IA...", 0.60)
 	var _engine: RefCounted = HandShapeClassifier.get_shared_engine()
+
+	# Inicialização e verificação do modelo de visão computacional (MediaPipe)
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Inicializando visão computacional...", 0.75)
+	if holistic != null and holistic.has_method("ensure_task_initialized"):
+		holistic.ensure_task_initialized()
 
 	# Inicialização e verificação da câmera
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Inicializando câmera e visão computacional...", 0.85)
+		_loading_overlay.set_progress("Iniciando câmera e aguardando sinal de vídeo...", 0.85)
 
 	_auto_select_best_camera()
 
-	# Aguarda a câmera estar pronta (com timeout seguro de 4.0s para não travar se não houver câmera)
+	# Aguarda a câmera e visão estarem prontas (com timeout seguro de 6.0s para não travar se não houver câmera)
+	var camera_ok: bool = false
 	if holistic != null and holistic.has_method("wait_for_camera_ready"):
-		await holistic.wait_for_camera_ready(4.0)
+		camera_ok = await holistic.wait_for_camera_ready(6.0)
+		if not camera_ok:
+			push_warning("LessonScreen: câmera não respondeu a tempo ou não está disponível")
 
 	_inject_camera_textures()
 
@@ -373,6 +382,10 @@ func _on_enter_recording() -> void:
 	# depois do primeiro frame ser processado, então atualizamos toda vez).
 	_inject_camera_textures()
 	var duration := _compute_capture_duration()
+	if holistic != null and holistic.has_method("is_camera_streaming") and holistic.is_camera_streaming():
+		recording.notify_camera_ready()
+	else:
+		recording.is_camera_ready = false
 	recording.begin(lesson, current_sign_index, duration)
 	_retry_camera_textures()
 

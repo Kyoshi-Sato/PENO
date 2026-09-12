@@ -63,6 +63,7 @@ enum Phase { IDLE, WAITING_CAMERA, COUNTDOWN, RECORDING, DONE }
 
 @onready var camera_preview: TextureRect = %CameraPreview
 
+var is_camera_ready: bool = false
 var is_camera_ready_override: bool = false
 var _phase: Phase = Phase.IDLE
 var _reference_landmarks: Dictionary = {}
@@ -126,12 +127,10 @@ func bind_camera_textures(raw: Texture2D, annotated: Texture2D) -> void:
 	_raw_texture = raw
 	_annotated_texture = annotated
 	_apply_preview_texture()
-	if raw != null or annotated != null:
-		notify_camera_ready()
 
 
 func notify_camera_ready() -> void:
-	is_camera_ready_override = true
+	is_camera_ready = true
 	if _phase == Phase.WAITING_CAMERA:
 		lbl_status.text = "Prepare-se"
 		lbl_hint.text = "Posicione-se em frente à câmera"
@@ -141,7 +140,7 @@ func notify_camera_ready() -> void:
 func _is_camera_ready() -> bool:
 	if is_camera_ready_override:
 		return true
-	return _raw_texture != null or _annotated_texture != null
+	return is_camera_ready
 
 
 ## true = câmera frontal (espelha horizontalmente o preview).
@@ -198,9 +197,9 @@ func _wait_for_camera_and_start() -> void:
 	lbl_countdown.visible = true
 	_set_countdown("⏳")
 
-	# Aguarda até a câmera estar pronta com timeout de segurança (4.0s)
+	# Aguarda até a câmera estar pronta com timeout de segurança (8.0s)
 	var timed_out := false
-	var timer := get_tree().create_timer(4.0)
+	var timer := get_tree().create_timer(8.0)
 	timer.timeout.connect(func() -> void: timed_out = true)
 
 	while not _is_camera_ready() and not timed_out:
@@ -208,9 +207,14 @@ func _wait_for_camera_and_start() -> void:
 		_apply_preview_texture()
 
 	if _phase == Phase.WAITING_CAMERA:
-		lbl_status.text = "Prepare-se"
-		lbl_hint.text = "Posicione-se em frente à câmera"
-		_start_countdown()
+		if _is_camera_ready():
+			lbl_status.text = "Prepare-se"
+			lbl_hint.text = "Posicione-se em frente à câmera"
+			_start_countdown()
+		else:
+			lbl_status.text = "Câmera não detectada"
+			lbl_hint.text = "Verifique as permissões da câmera nas configurações"
+			lbl_countdown.text = "⚠️"
 
 
 func on_capture_complete(export_data: Dictionary) -> void:

@@ -114,15 +114,19 @@ func test_recording_state_waits_for_camera_before_countdown() -> void:
 	var dummy_lesson := Lesson.new()
 	dummy_lesson.sinais = [{"nome_sinal": "A", "json_sinal": {}}]
 
-	# Inicia gravação com a câmera ainda não pronta
+	# Injeta textura de preview simulada — NÃO deve marcar a câmera como pronta
+	rec.bind_camera_textures(ImageTexture.new(), null)
 	rec.is_camera_ready_override = false
+	assert_false(rec._is_camera_ready(), "Apenas injetar textura não deve marcar a câmera física como pronta")
+
+	# Inicia gravação com a câmera ainda não pronta
 	rec.begin(dummy_lesson, 0, 3.0)
 
 	# Deve estar em WAITING_CAMERA e não em COUNTDOWN
 	assert_eq(rec._phase, rec.Phase.WAITING_CAMERA, "Fase deve ser WAITING_CAMERA enquanto a câmera não carregou")
 	assert_eq(rec.lbl_status.text, "Iniciando câmera...", "Status deve indicar espera da câmera")
 
-	# Agora notifica que a câmera carregou
+	# Agora notifica que a câmera física carregou quadros reais
 	rec.notify_camera_ready()
 
 	# Deve ter transitado imediatamente para COUNTDOWN
@@ -136,6 +140,9 @@ func test_holistic_camera_helpers() -> void:
 	add_child_autofree(holistic)
 
 	assert_false(holistic.is_camera_streaming(), "Sem feed ativo, is_camera_streaming deve ser false")
+
+	# ensure_task_initialized deve rodar sem erros
+	holistic.ensure_task_initialized()
 
 	# wait_for_camera_ready deve retornar de forma limpa e segura sem travar
 	var ready_ok: bool = await holistic.wait_for_camera_ready(0.2)
