@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://busbb8aswp80w"]
 
-[ext_resource type="Script" uid="uid://dwgrv10wlxww4" path="res://GUI/feedback/FeedbackState.gd" id="1_feedback"]
-[ext_resource type="Theme" uid="uid://dxghb8dsnj4fw" path="res://themes/handsign.tres" id="2_theme"]
-[ext_resource type="Script" uid="uid://bga24jwnii2q" path="res://Scripts/PrecisionRing.gd" id="3_ring"]
-[ext_resource type="Script" uid="uid://c7f7jaumm0owa" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
+[ext_resource type="Script" path="res://GUI/feedback/FeedbackState.gd" id="1_feedback"]
+[ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
+[ext_resource type="Script" path="res://Scripts/PrecisionRing.gd" id="3_ring"]
+[ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
 
 [node name="FeedbackState" type="Control" unique_id=1041563451]
 layout_mode = 3

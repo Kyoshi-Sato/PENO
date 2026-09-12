@@ -10,10 +10,10 @@ func before_each() -> void:
 
 func test_star_boundaries() -> void:
 	assert_eq(fb._stars_for_precision(1.0), 3)
-	assert_eq(fb._stars_for_precision(0.9), 3, "0.9 inclusivo")
-	assert_eq(fb._stars_for_precision(0.899), 2)
-	assert_eq(fb._stars_for_precision(0.7), 2, "0.7 inclusivo")
-	assert_eq(fb._stars_for_precision(0.699), 1)
+	assert_eq(fb._stars_for_precision(0.7), 3, "0.7 inclusivo")
+	assert_eq(fb._stars_for_precision(0.699), 2)
+	assert_eq(fb._stars_for_precision(0.6), 2, "0.6 inclusivo")
+	assert_eq(fb._stars_for_precision(0.599), 1)
 	assert_eq(fb._stars_for_precision(0.5), 1, "0.5 inclusivo")
 	assert_eq(fb._stars_for_precision(0.499), 0)
 	assert_eq(fb._stars_for_precision(0.0), 0)

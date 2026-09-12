@@ -185,6 +185,7 @@ func on_capture_complete(export_data: Dictionary) -> void:
 
 	var payload := {
 		"sign_id": _current_sign_name,
+		"nome_sinal": _current_sign_name,
 		"frames": export_data.get("frames", []),
 		"video_info": export_data.get("video_info", {}),
 		"reference": _reference_landmarks,

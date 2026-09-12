@@ -276,6 +276,7 @@ func _on_enter_showcase() -> void:
 
 
 func _on_enter_recording() -> void:
+	_last_payload.clear()
 	_show_only(recording)
 	_set_chrome_step(1)
 	if holistic and holistic.has_method("resume_camera"):

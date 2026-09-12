@@ -68,6 +68,10 @@ folder_colors={
 "res://data/": "gray"
 }
 
+[filesystem]
+
+import/blender/enabled=false
+
 [rendering]
 
 renderer/rendering_method="mobile"
