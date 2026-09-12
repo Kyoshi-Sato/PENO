@@ -29,6 +29,7 @@ var _current_ratio: float = 0.0
 
 
 func _init() -> void:
+	z_index = 100
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP # Bloqueia toques nos botões de trás durante o carregamento
 

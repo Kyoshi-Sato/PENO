@@ -71,6 +71,7 @@ func _ready() -> void:
 	recording.recording_finished.connect(_on_recording_finished)
 	recording.cancel_requested.connect(_on_recording_cancelled)
 	recording.request_start_capture.connect(_on_request_start_capture)
+	recording.request_stop_capture.connect(_on_request_stop_capture)
 	recording.request_reset_capture.connect(_on_request_reset_capture)
 
 	feedback.retry_requested.connect(_on_retry)
@@ -157,26 +158,33 @@ func _on_lesson_loaded(loaded: Lesson) -> void:
 	_sign_stars.resize(lesson.sinais.size())
 
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Preparando animações do avatar 3D...", 0.40)
+		_loading_overlay.set_progress("Carregando dados da lição...", 0.25)
+	await get_tree().process_frame
+
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Preparando animações do avatar 3D...", 0.45)
 
 	if animation_player.has_animation_library(LIBRARY_NAME):
 		animation_player.remove_animation_library(LIBRARY_NAME)
 	animation_player.add_animation_library(LIBRARY_NAME, lesson.animation_library)
+	await get_tree().process_frame
 
 	# Pré-aquecimento do classificador de IA da forma da mão (TCC)
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Carregando modelo neural de IA...", 0.60)
+		_loading_overlay.set_progress("Carregando modelo neural de IA...", 0.65)
 	var _engine: RefCounted = HandShapeClassifier.get_shared_engine()
+	await get_tree().process_frame
 
 	# Inicialização e verificação do modelo de visão computacional (MediaPipe)
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Inicializando visão computacional...", 0.75)
+		_loading_overlay.set_progress("Inicializando visão computacional...", 0.80)
 	if holistic != null and holistic.has_method("ensure_task_initialized"):
 		holistic.ensure_task_initialized()
+	await get_tree().process_frame
 
 	# Inicialização e verificação da câmera
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Iniciando câmera e aguardando sinal de vídeo...", 0.85)
+		_loading_overlay.set_progress("Conectando à câmera...", 0.90)
 
 	_auto_select_best_camera()
 
@@ -194,8 +202,10 @@ func _on_lesson_loaded(loaded: Lesson) -> void:
 
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
 		_loading_overlay.set_progress("Exercício pronto!", 1.0)
+		# Garante tempo de leitura para o usuário acompanhar a finalização da carga
+		await get_tree().create_timer(0.4).timeout
 		var t := create_tween()
-		t.tween_property(_loading_overlay, "modulate:a", 0.0, DS.DUR_FAST)
+		t.tween_property(_loading_overlay, "modulate:a", 0.0, DS.DUR_BASE)
 		t.finished.connect(func() -> void:
 			if is_instance_valid(_loading_overlay):
 				_loading_overlay.visible = false
@@ -446,6 +456,11 @@ func _on_request_start_capture(duration_seconds: float) -> void:
 		holistic._begin_capture(duration_seconds)
 	else:
 		push_warning("HolisticLandmarker._begin_capture() indisponível")
+
+
+func _on_request_stop_capture() -> void:
+	if holistic and holistic.has_method("stop_capture"):
+		holistic.stop_capture()
 
 
 func _on_request_reset_capture() -> void:

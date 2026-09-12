@@ -362,8 +362,10 @@ func wait_for_camera_ready(timeout_seconds: float = 6.0) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════
-#  CAPTURA (lógica original)
+#  CAPTURA (lógica original com travas de segurança)
 # ═══════════════════════════════════════════════════════════
+
+const MAX_CAPTURE_FRAMES: int = 360 # ~12 segundos a 30fps
 
 func _begin_capture(tempo: float) -> void:
 	# Garante o feed vivo: um _reset anterior (cancelamento) o desativa e
@@ -379,16 +381,27 @@ func _begin_capture(tempo: float) -> void:
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
 	capture_output_path = "user://anim_cache/holistic_capture_%s.json" % stamp
 
+	var safe_tempo: float = clampf(tempo, 1.0, 15.0) if tempo > 0.0 else 10.0
 	if capture_timer and not capture_timer.is_stopped():
 		capture_timer.stop()
-	capture_timer.wait_time = tempo
+	capture_timer.wait_time = safe_tempo
 	capture_timer.start()
 
-	print_debug("Captura iniciada por: %.2f segundos" % tempo)
+	print_debug("Captura iniciada por: %.2f segundos" % safe_tempo)
+
+
+## Interrompe e finaliza imediatamente a gravação ativa.
+func stop_capture() -> void:
+	if not capture_active:
+		return
+	capture_active = false
+	if capture_timer and not capture_timer.is_stopped():
+		capture_timer.stop()
+	_export_capture_json()
+
 
 func _on_capture_timeout() -> void:
-	capture_active = false
-	_export_capture_json()
+	stop_capture()
 
 ## Roda na thread de callbacks do GDMP. Um resultado chegando é a única
 ## prova de que o delegate sobreviveu à abertura dos nós; o veredito vai
@@ -556,6 +569,30 @@ func _process_video(image: Image, timestamp_ms: int) -> void:
 	var outputs := task_runner.process({"image_in": packet})
 	show_result(outputs)
 
+const INFERENCE_TARGET_FPS: float = 30.0
+const MIN_INFERENCE_INTERVAL_MS: int = 33
+const MAX_INFLIGHT_FRAMES: int = 1
+const MIN_READBACK_INTERVAL_MS: int = 30
+
+var _last_inference_submitted_ms: int = 0
+var _last_readback_ms: int = 0
+
+
+func _camera_frame_changed() -> void:
+	# Economia massiva de CPU/GPU: se a inferência estiver pausada (durante exibição do avatar 3D)
+	# e a câmera já foi confirmada pronta, não faz o readback pesado GPU->CPU a 60-120fps.
+	if _inference_paused and is_camera_ready:
+		return
+
+	# Limita taxa de readback de textura na CPU para ~30 FPS
+	var now_ms: int = Time.get_ticks_msec()
+	if (now_ms - _last_readback_ms) < MIN_READBACK_INTERVAL_MS:
+		return
+	_last_readback_ms = now_ms
+
+	super._camera_frame_changed()
+
+
 func _process_camera(image: MediaPipeImage, timestamp_ms: int) -> void:
 	camera_frames_count += 1
 	if not is_camera_ready:
@@ -565,6 +602,19 @@ func _process_camera(image: MediaPipeImage, timestamp_ms: int) -> void:
 	if not _task_initialized or _inference_paused:
 		return   # sem modelo ou em modo de economia, apenas mantém a câmera aquecida
 
+	var now_ms: int = Time.get_ticks_msec()
+
+	# 1. Throttling de taxa de quadros (não sobrecarregar CPU/GPU acima de 30 FPS)
+	if (now_ms - _last_inference_submitted_ms) < MIN_INFERENCE_INTERVAL_MS:
+		return
+
+	# 2. Backpressure / Drop-if-busy: se o MediaPipe ainda estiver ocupado processando
+	# o quadro anterior na thread C++, descarta este quadro para evitar estouro de memória (1.7 GB) e lag.
+	var in_flight: int = _perf_submitted - _perf_results
+	if in_flight > MAX_INFLIGHT_FRAMES:
+		return
+
+	_last_inference_submitted_ms = now_ms
 	_perf_submitted += 1
 	_maybe_report_performance()
 	var packet := image.get_packet()
@@ -739,6 +789,11 @@ func _append_capture_frame(frame_entry: Dictionary) -> void:
 	frame_entry["frame"] = capture_frame_index
 	capture_frames.append(frame_entry)
 	capture_frame_index += 1
+
+	# Trava de segurança: impede acúmulo descontrolado de quadros na memória
+	if capture_frames.size() >= MAX_CAPTURE_FRAMES:
+		push_warning("[HolisticLandmarker] Limite máximo de quadros (%d) atingido. Finalizando captura." % MAX_CAPTURE_FRAMES)
+		stop_capture()
 
 func _build_hand_entry(outputs: Dictionary, key: String, handedness: String) -> Dictionary:
 	if not outputs.has(key):

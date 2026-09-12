@@ -78,7 +78,15 @@ func _boot() -> void:
 		p.end_timer("WARM_AI_NEURAL_ENGINE", {"classes": _shared.labels.size() if "labels" in _shared else 0})
 	Motion.fill_bar(bar, 0.85, DS.DUR_FAST)
 
-	# 3. Pré-busca do Catálogo de Lições
+	# 3. Inicialização antecipada da câmera em segundo plano
+	lbl_status.text = "Detectando câmera do dispositivo…"
+	if not CameraServer.monitoring_feeds:
+		CameraServer.monitoring_feeds = true
+	if OS.get_name() in ["Windows", "iOS"]:
+		var _cam_ext := CameraServerExtension.new()
+	await get_tree().process_frame
+
+	# 4. Pré-busca do Catálogo de Lições
 	lbl_status.text = "Sincronizando catálogo…"
 	if p != null and p.has_method("start_timer"):
 		p.start_timer("PREFETCH_CATALOG")

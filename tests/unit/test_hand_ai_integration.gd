@@ -469,3 +469,36 @@ func test_strict_shape_scoring_tolerances() -> void:
 	assert_true(sim_gross_err <= 0.10, "Erro grosseiro de nível 4 em um dedo deve derrubar a pontuação para <= 0.10")
 
 
+func test_oversized_frames_safety_downsampling() -> void:
+	var validator: SignValidator = autofree(ParallelSignValidator.new())
+
+	# Cria payload com 1000 frames simulados (para testar proteção contra estouro de memória e DTW)
+	var huge_user_payload := {
+		"frames": [],
+		"video_info": {"fps": 30.0}
+	}
+	for i in range(1000):
+		huge_user_payload["frames"].append({
+			"timestamp_ms": i * 33,
+			"pose": [{"id": 0, "x": 0.5, "y": 0.5, "z": 0.0, "visibility": 1.0}],
+			"hands": [{"handedness": "Right", "landmarks": [{"id": 0, "x": 0.5, "y": 0.5, "z": 0.0}]}]
+		})
+
+	var reference := {
+		"nome_sinal": "A",
+		"expected_code": "4141414100",
+		"frames": [
+			{
+				"timestamp_ms": 0,
+				"pose": [{"id": 0, "x": 0.5, "y": 0.5, "z": 0.0, "visibility": 1.0}],
+				"hands": [{"handedness": "Right", "landmarks": [{"id": 0, "x": 0.5, "y": 0.5, "z": 0.0}]}]
+			}
+		]
+	}
+
+	var res: Dictionary = validator.validate(huge_user_payload, reference)
+	assert_not_null(res, "Validador deve concluir sem travar")
+	assert_lte(huge_user_payload["frames"].size(), 200, "Frames devem ser subamostrados para proteger DTW")
+
+
+

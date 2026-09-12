@@ -20,6 +20,19 @@ func _init() -> void:
 
 
 func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
+	var user_frames: Array = user_payload.get("frames", []) as Array
+
+	# Trava de proteção: se por anomalia a gravação contiver um número excessivo de frames,
+	# subamostra proporcionalmente para no máximo 200 frames para evitar travamento do algoritmo DTW.
+	if user_frames.size() > 250:
+		var stride: float = float(user_frames.size()) / 200.0
+		var downsampled_user_frames: Array = []
+		for i in range(200):
+			var idx: int = mini(int(round(float(i) * stride)), user_frames.size() - 1)
+			downsampled_user_frames.append(user_frames[idx])
+		user_frames = downsampled_user_frames
+		user_payload["frames"] = user_frames
+
 	# 1. Executa o validador original intocado
 	var legacy_result: Dictionary = {}
 	if legacy_validator != null:
@@ -31,7 +44,6 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 	var user_classifier: RefCounted = HandShapeClassifierScript.new()
 
 	var ref_frames: Array = reference.get("frames", []) as Array
-	var user_frames: Array = user_payload.get("frames", []) as Array
 
 	# Identifica o nome do sinal da lição / referência
 	var sign_name: String = _resolve_sign_name(reference, user_payload)

@@ -27,6 +27,7 @@ extends Control
 signal recording_finished(payload: Dictionary)
 signal cancel_requested
 signal request_start_capture(duration_seconds: float)
+signal request_stop_capture
 signal request_reset_capture
 
 const COUNTDOWN_SECONDS := 3
@@ -312,6 +313,7 @@ func _on_tick() -> void:
 				lbl_status.text = "Analisando seu sinal…"
 				lbl_hint.text = "Só um instante"
 				_tick_timer.stop()
+				request_stop_capture.emit()
 		_:
 			_tick_timer.stop()
 
