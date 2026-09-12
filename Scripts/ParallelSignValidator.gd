@@ -10,6 +10,8 @@ const MotionWrapperScript := preload("res://Scripts/MotionWrapper.gd")
 const HandShapeClassifierScript := preload("res://Scripts/HandShapeClassifier.gd")
 const HandBiomechanicalGuidanceScript := preload("res://Scripts/HandBiomechanicalGuidance.gd")
 
+static var _ref_eval_cache: Dictionary = {}
+
 var legacy_validator: SignValidator
 
 
@@ -25,10 +27,7 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 	else:
 		legacy_result = {"precision": 0.0, "ok": false, "error": "sem legacy validator"}
 
-	# 2. Executa a nova IA de forma de mão (TCC)
-	# Instâncias independentes para garantir que o estado (EMA, histórico de mediana, timestamp)
-	# da referência não se misture com o do usuário nem entre tentativas.
-	var ref_classifier: RefCounted = HandShapeClassifierScript.new()
+	# 2. Executa a IA de forma de mão (TCC)
 	var user_classifier: RefCounted = HandShapeClassifierScript.new()
 
 	var ref_frames: Array = reference.get("frames", []) as Array
@@ -38,7 +37,7 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 	var sign_name: String = _resolve_sign_name(reference, user_payload)
 	var expected_code_by_name: String = HandBiomechanicalGuidanceScript.resolve_kinematic_code(sign_name)
 
-	# --- PASSO A: O MODELO PASSA EM CIMA DO SINAL BASE (REFERÊNCIA) ---
+	# --- PASSO A: O MODELO PASSA EM CIMA DO SINAL BASE (COM CACHE INTELIGENTE) ---
 	var ref_ai_result: Dictionary = {}
 	var target_expected_code: String = expected_code_by_name
 
@@ -47,11 +46,16 @@ func validate(user_payload: Dictionary, reference: Dictionary) -> Dictionary:
 		target_expected_code = String(reference["expected_code"])
 
 	if not ref_frames.is_empty():
-		# O modelo neural processa todo o sinal base para extrair a forma dominante real
-		ref_ai_result = ref_classifier.evaluate_recording(ref_frames, target_expected_code)
+		# Otimização: Cacheia a análise do sinal base para evitar recomputação pesada na CPU móvel
+		var cache_key := "%s_%d" % [sign_name, ref_frames.size()]
+		if _ref_eval_cache.has(cache_key):
+			ref_ai_result = _ref_eval_cache[cache_key]
+		else:
+			var ref_classifier: RefCounted = HandShapeClassifierScript.new()
+			ref_ai_result = ref_classifier.evaluate_recording(ref_frames, target_expected_code)
+			_ref_eval_cache[cache_key] = ref_ai_result
+
 		var ref_dom_code: String = String(ref_ai_result.get("dominant_code", ""))
-		# Se a rede detectou mão na referência com código válido, adota o código inferido
-		# do sinal base em exibição como o gabarito dinâmico
 		if not ref_dom_code.is_empty() and ref_dom_code != "0000000000":
 			target_expected_code = ref_dom_code
 	# Determina os códigos esperados para mão direita e esquerda a partir da análise da base

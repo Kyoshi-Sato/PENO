@@ -271,3 +271,80 @@ func test_dual_hand_extraction_and_model_execution() -> void:
 	assert_true(bool(ai_val_res.get("both_hands_detected", false)), "Validador em paralelo deve indicar ambas as mãos")
 
 
+func test_continuous_posture_similarity() -> void:
+	# 1. Códigos idênticos devem ter 1.0 (100% de similaridade)
+	var sim_identical: float = HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141414110", "4141414110")
+	assert_almost_eq(sim_identical, 1.0, 0.001, "Códigos idênticos devem ter similaridade 1.0")
+
+	# 2. Variação leve no polegar (ex: ponta dobrada vs estendida) deve ter nota alta contínua (~0.92) e não zero binário
+	var sim_close: float = HandBiomechanicalGuidanceScript.calculate_posture_similarity("4141414100", "4141414110")
+	assert_gt(sim_close, 0.85, "Pequena variação no polegar deve manter similaridade alta (> 0.85)")
+	assert_lt(sim_close, 1.0, "Variação deve ser estritamente menor que 1.0")
+
+	# 3. Formas com dedos na mesma flexão (ex: punho fechado Letra A vs Letra S) devem ter proximidade contínua proporcional
+	var code_a := "4141414110"
+	var code_s := "4141414120"
+	var sim_a_s: float = HandBiomechanicalGuidanceScript.calculate_posture_similarity(code_a, code_s)
+	assert_gt(sim_a_s, 0.85, "A e S compartilham 4 dedos fechados e devem ter proximidade > 0.85")
+
+	# 4. Formas diametralmente opostas (Letra A fechada vs Letra B aberta) devem ter nota baixa
+	var code_b := "0101010110"
+	var sim_a_b: float = HandBiomechanicalGuidanceScript.calculate_posture_similarity(code_a, code_b)
+	assert_true(sim_a_b <= 0.40, "Letra A (fechada) e Letra B (aberta) devem ter similaridade <= 0.40")
+
+
+func test_unread_frames_ignored_in_evaluation() -> void:
+	var file := FileAccess.open("res://tests/fixtures/api_letra_a.json", FileAccess.READ)
+	assert_not_null(file, "Fixture api_letra_a.json deve existir")
+	if file == null:
+		return
+	var raw_doc: Dictionary = JSON.parse_string(file.get_as_text()) as Dictionary
+	file.close()
+
+	var original_frames: Array = (raw_doc.get("frames", []) as Array).slice(0, 15)
+	var classifier: HandShapeClassifier = HandShapeClassifierScript.new()
+
+	# Avaliação dos frames originais puros
+	var eval_clean: Dictionary = classifier.evaluate_recording(original_frames, "A")
+	var prec_clean: float = float(eval_clean.get("hand_precision", 0.0))
+	assert_gt(prec_clean, 0.70, "Precisão dos frames puros deve ser alta")
+
+	# Cria gravação poluída com frames vazios / sem mão (ex: usuário posicionando a câmera)
+	# Mantendo total <= 30 para manter o mesmo stride step=1 e testar isoladamente a exclusão dos vazios
+	var corrupted_frames: Array = []
+	for i in range(5):
+		corrupted_frames.append({"timestamp_ms": i * 33, "hands": []})
+	corrupted_frames.append_array(original_frames)
+	for i in range(5):
+		corrupted_frames.append({"timestamp_ms": (20 + i) * 33, "hands": []})
+
+	var eval_corrupted: Dictionary = classifier.evaluate_recording(corrupted_frames, "A")
+	var prec_corrupted: float = float(eval_corrupted.get("hand_precision", 0.0))
+
+	# A pontuação de precisão da forma NÃO deve ser prejudicada/diluída pelos frames sem mão
+	assert_almost_eq(prec_corrupted, prec_clean, 0.05, "Frames sem detecção não devem penalizar a precisão da mão")
+	assert_gt(int(eval_corrupted.get("total_frames", 0)), int(eval_clean.get("total_frames", 0)), "Total de frames inclui vazios")
+	assert_eq(int(eval_corrupted.get("detected_frames", 0)), int(eval_clean.get("detected_frames", 0)), "Apenas frames com mão contam como detectados")
+
+
+func test_mobile_stride_optimization() -> void:
+	# Cria gravação sintética longa (90 frames)
+	var dummy_lms: Array = []
+	for i in range(21):
+		dummy_lms.append({"x": 0.5 + float(i) * 0.01, "y": 0.5 + float(i) * 0.01, "z": 0.0})
+
+	var long_frames: Array = []
+	for i in range(90):
+		long_frames.append({
+			"timestamp_ms": i * 33,
+			"hands": [{"handedness": "Right", "landmarks": dummy_lms}]
+		})
+
+	var classifier: HandShapeClassifier = HandShapeClassifierScript.new()
+	var eval_res: Dictionary = classifier.evaluate_recording(long_frames, "A")
+
+	# Com 90 frames, o stride adaptativo deve ser 3, processando exatamente 30 frames (90 / 3)
+	assert_eq(int(eval_res.get("total_frames", 0)), 90, "Total de frames registrado deve ser 90")
+	assert_eq(int(eval_res.get("detected_frames", 0)), 30, "Stride para >60 frames deve processar 30 inferências leves")
+
+

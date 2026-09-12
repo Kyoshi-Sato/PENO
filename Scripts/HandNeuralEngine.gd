@@ -37,6 +37,16 @@ var o2: PackedFloat32Array
 var w3: PackedFloat32Array
 var b3: PackedFloat32Array
 
+# Buffers de ativação pré-alocados para eliminar garbage collection em dispositivos móveis
+var _z0: PackedFloat32Array
+var _a0: PackedFloat32Array
+var _z1: PackedFloat32Array
+var _a1: PackedFloat32Array
+var _z2: PackedFloat32Array
+var _a2: PackedFloat32Array
+var _z3: PackedFloat32Array
+var _probs: PackedFloat32Array
+
 
 func load_model(weights_path: String = DEFAULT_WEIGHTS_PATH, labels_path: String = DEFAULT_LABELS_PATH) -> bool:
 	if not FileAccess.file_exists(weights_path):
@@ -91,6 +101,16 @@ func load_model(weights_path: String = DEFAULT_WEIGHTS_PATH, labels_path: String
 	w3 = _read_float_array(bin_file, d_h3 * d_out)
 	b3 = _read_float_array(bin_file, d_out)
 
+	# Pré-aloca buffers de scratch em memória contígua
+	_z0.resize(d_h1)
+	_a0.resize(d_h1)
+	_z1.resize(d_h2)
+	_a1.resize(d_h2)
+	_z2.resize(d_h3)
+	_a2.resize(d_h3)
+	_z3.resize(d_out)
+	_probs.resize(d_out)
+
 	is_loaded = true
 	return true
 
@@ -112,27 +132,24 @@ func predict(features: PackedFloat32Array) -> Dictionary:
 		push_error("HandNeuralEngine: Tamanho de entrada incorreto (%d != %d)" % [features.size(), d_in])
 		return {"code": "0000000000", "confidence": 0.0, "top_index": -1, "probabilities": PackedFloat32Array()}
 
-	# Layer 0: Dense (42 -> 512) + ReLU + BN
-	var z0 := _dense_forward(features, w0, b0, d_in, d_h1)
-	var a0 := _relu_and_bn(z0, s0, o0, d_h1)
+	# Forward in-place com zero alocações no heap
+	_dense_forward_into(features, w0, b0, d_in, d_h1, _z0)
+	_relu_and_bn_into(_z0, s0, o0, d_h1, _a0)
 
-	# Layer 1: Dense (512 -> 256) + ReLU + BN
-	var z1 := _dense_forward(a0, w1, b1, d_h1, d_h2)
-	var a1 := _relu_and_bn(z1, s1, o1, d_h2)
+	_dense_forward_into(_a0, w1, b1, d_h1, d_h2, _z1)
+	_relu_and_bn_into(_z1, s1, o1, d_h2, _a1)
 
-	# Layer 2: Dense (256 -> 128) + ReLU + BN
-	var z2 := _dense_forward(a1, w2, b2, d_h2, d_h3)
-	var a2 := _relu_and_bn(z2, s2, o2, d_h3)
+	_dense_forward_into(_a1, w2, b2, d_h2, d_h3, _z2)
+	_relu_and_bn_into(_z2, s2, o2, d_h3, _a2)
 
-	# Layer 3: Dense (128 -> 2364) + Softmax
-	var z3 := _dense_forward(a2, w3, b3, d_h3, d_out)
-	var probs := _softmax(z3, d_out)
+	_dense_forward_into(_a2, w3, b3, d_h3, d_out, _z3)
+	_softmax_into(_z3, d_out, _probs)
 
 	# Argmax e Confiança
 	var top_idx := 0
-	var max_prob := probs[0]
+	var max_prob := _probs[0]
 	for k in range(1, d_out):
-		var p := probs[k]
+		var p := _probs[k]
 		if p > max_prob:
 			max_prob = p
 			top_idx = k
@@ -145,47 +162,38 @@ func predict(features: PackedFloat32Array) -> Dictionary:
 		"code": code,
 		"confidence": max_prob,
 		"top_index": top_idx,
-		"probabilities": probs
+		"probabilities": _probs
 	}
 
 
-## Multiplicação de matriz: output = input * W + bias
-## input: (M,), W: (M, N) em row-major, bias: (N,), output: (N,)
-func _dense_forward(x: PackedFloat32Array, W: PackedFloat32Array, b: PackedFloat32Array, M: int, N: int) -> PackedFloat32Array:
-	var out := b.duplicate()
+func _dense_forward_into(x: PackedFloat32Array, W: PackedFloat32Array, b: PackedFloat32Array, M: int, N: int, out: PackedFloat32Array) -> void:
+	for j in range(N):
+		out[j] = b[j]
 	for i in range(M):
 		var xi := x[i]
 		if xi == 0.0:
-			continue  # Otimização para matrizes esparsas pós-ReLU
+			continue  # Bypass esparso após ReLU
 		var row_offset := i * N
 		for j in range(N):
 			out[j] += xi * W[row_offset + j]
-	return out
 
 
-## Aplica ReLU: h = max(0, z), seguido de BatchNormalization: h * scale + offset
-func _relu_and_bn(z: PackedFloat32Array, scale: PackedFloat32Array, offset: PackedFloat32Array, N: int) -> PackedFloat32Array:
-	var out := PackedFloat32Array()
-	out.resize(N)
+func _relu_and_bn_into(z: PackedFloat32Array, scale: PackedFloat32Array, offset: PackedFloat32Array, N: int, out: PackedFloat32Array) -> void:
 	for j in range(N):
 		var val := z[j]
 		if val > 0.0:
 			out[j] = val * scale[j] + offset[j]
 		else:
 			out[j] = offset[j]
-	return out
 
 
-## Softmax numericamente estável: exp(z - max) / sum(exp(z - max))
-func _softmax(z: PackedFloat32Array, N: int) -> PackedFloat32Array:
+func _softmax_into(z: PackedFloat32Array, N: int, out: PackedFloat32Array) -> void:
 	var max_val := z[0]
 	for j in range(1, N):
 		if z[j] > max_val:
 			max_val = z[j]
 
 	var exp_sum := 0.0
-	var out := PackedFloat32Array()
-	out.resize(N)
 	for j in range(N):
 		var ez := exp(z[j] - max_val)
 		out[j] = ez
@@ -195,6 +203,33 @@ func _softmax(z: PackedFloat32Array, N: int) -> PackedFloat32Array:
 	for j in range(N):
 		out[j] *= inv_sum
 
+
+## Multiplicação de matriz original preservada para compatibilidade de API
+func _dense_forward(x: PackedFloat32Array, W: PackedFloat32Array, b: PackedFloat32Array, M: int, N: int) -> PackedFloat32Array:
+	var out := b.duplicate()
+	for i in range(M):
+		var xi := x[i]
+		if xi == 0.0:
+			continue
+		var row_offset := i * N
+		for j in range(N):
+			out[j] += xi * W[row_offset + j]
+	return out
+
+
+## Aplica ReLU e BN original preservado para compatibilidade
+func _relu_and_bn(z: PackedFloat32Array, scale: PackedFloat32Array, offset: PackedFloat32Array, N: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(N)
+	_relu_and_bn_into(z, scale, offset, N, out)
+	return out
+
+
+## Softmax original preservado para compatibilidade
+func _softmax(z: PackedFloat32Array, N: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(N)
+	_softmax_into(z, N, out)
 	return out
 
 

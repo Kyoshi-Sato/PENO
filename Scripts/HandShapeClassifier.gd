@@ -23,6 +23,7 @@ class HandChannelState:
 	var detected_frames: int = 0
 	var match_frames: int = 0
 	var confidences: Array[float] = []
+	var similarities: Array[float] = []
 	var history_codes: Array[String] = []
 	var code_frequencies: Dictionary = {}
 	var last_guidance: Dictionary = {}
@@ -35,9 +36,20 @@ class HandChannelState:
 		detected_frames = 0
 		match_frames = 0
 		confidences.clear()
+		similarities.clear()
 		history_codes.clear()
 		code_frequencies.clear()
 		last_guidance.clear()
+
+
+static var _shared_engine: RefCounted = null
+
+## Retorna a instância compartilhada (singleton) do modelo, evitando recarregamentos do disco.
+static func get_shared_engine() -> RefCounted:
+	if _shared_engine == null or not bool(_shared_engine.get("is_loaded")):
+		_shared_engine = HandNeuralEngineScript.new()
+		_shared_engine.load_model()
+	return _shared_engine
 
 
 var engine: RefCounted
@@ -65,8 +77,7 @@ func _init(p_engine: RefCounted = null) -> void:
 	if p_engine != null:
 		engine = p_engine
 	else:
-		engine = HandNeuralEngineScript.new()
-		engine.load_model()
+		engine = get_shared_engine()
 
 
 ## Reinicia os buffers temporais para iniciar uma nova captura em ambos os canais.
@@ -313,13 +324,25 @@ func evaluate_recording(frames: Array, expected_code: String, expected_left_code
 	if not expected_left_code.is_empty():
 		expected_clean_left = HandBiomechanicalGuidanceScript.resolve_kinematic_code(expected_left_code)
 
-	for frame_var: Variant in frames:
-		var frame: Dictionary = frame_var as Dictionary
+	var n_frames := frames.size()
+	# Amostragem com passo adaptativo (stride) para dispositivos móveis:
+	# Mantém taxa de análise estável (~15-20 fps), reduzindo em até 66% as inferências
+	var step := 1
+	if n_frames > 60:
+		step = 3
+	elif n_frames > 30:
+		step = 2
+
+	for f_idx: int in range(0, n_frames, step):
+		var frame: Dictionary = frames[f_idx] as Dictionary
 		var ts: float = float(frame.get("timestamp_ms", -1.0))
 		if ts < 0.0 and frame.has("t"):
 			ts = float(frame["t"]) * 1000.0
 
 		var all_hands: Array[Dictionary] = extract_all_hands_from_frame(frame)
+		# Quadros sem mãos detectadas são desconsiderados da avaliação de forma
+		if all_hands.is_empty():
+			continue
 
 		for h_entry: Dictionary in all_hands:
 			var side: String = String(h_entry.get("handedness", "Right"))
@@ -338,9 +361,13 @@ func evaluate_recording(frames: Array, expected_code: String, expected_left_code
 				ch.code_frequencies[c] = int(ch.code_frequencies.get(c, 0)) + 1
 
 				var expected_target := expected_clean_left if is_left else expected_clean_right
+				# Similaridade cinemática contínua (0.0 a 1.0)
+				var sim: float = HandBiomechanicalGuidanceScript.calculate_posture_similarity(c, expected_target)
+				ch.similarities.append(sim)
+
 				var g := HandBiomechanicalGuidanceScript.get_biomechanical_guidance(c, expected_target)
 				ch.last_guidance = g
-				if bool(g.get("match", false)):
+				if bool(g.get("match", false)) or sim >= 0.70:
 					ch.match_frames += 1
 
 	var right_res := _compile_channel_results(right_channel, expected_clean_right, frames.size())
@@ -428,12 +455,30 @@ func _compile_channel_results(ch: HandChannelState, expected_clean: String, tota
 		total_conf += c_val
 	var avg_conf: float = total_conf / float(ch.confidences.size()) if not ch.confidences.is_empty() else 0.0
 
-	var hand_precision := float(ch.match_frames) / float(ch.detected_frames)
+	# Cálculo de Precisão com Proximidade Contínua e Foco no Ápice da Execução:
+	# Desconsidera os quadros transitórios (subida/descida da mão)
+	# e calcula a média do ápice dos quadros em que a mão esteve presente (top 70%).
+	var top_sim_avg := 0.0
+	if not ch.similarities.is_empty():
+		var sorted_sims := ch.similarities.duplicate()
+		sorted_sims.sort()
+		var num_top := maxi(1, int(ceil(float(sorted_sims.size()) * 0.70)))
+		var start_idx := sorted_sims.size() - num_top
+		var sum_top := 0.0
+		for i in range(start_idx, sorted_sims.size()):
+			sum_top += float(sorted_sims[i])
+		top_sim_avg = sum_top / float(num_top)
 
-	if not most_frequent_code.is_empty():
-		var final_guidance := HandBiomechanicalGuidanceScript.get_biomechanical_guidance(most_frequent_code, expected_clean)
-		if bool(final_guidance.get("match", false)):
-			hand_precision = maxf(hand_precision, 0.85)
+	# Similaridade contínua do código dominante estabilizado
+	var dominant_sim := HandBiomechanicalGuidanceScript.calculate_posture_similarity(most_frequent_code, expected_clean)
+
+	# A precisão oficial da mão combina a postura sustentada dominante (70%) e o ápice dos frames lidos (30%)
+	var hand_precision := maxf(dominant_sim, (dominant_sim * 0.70) + (top_sim_avg * 0.30))
+
+	# Se a forma dominante ou a média do ápice atingiu alta similaridade, garante aprovação merecida
+	var final_guidance := HandBiomechanicalGuidanceScript.get_biomechanical_guidance(most_frequent_code, expected_clean)
+	if bool(final_guidance.get("match", false)) or dominant_sim >= 0.85:
+		hand_precision = maxf(hand_precision, 0.88)
 
 	var closest_letter := HandBiomechanicalGuidanceScript.get_closest_letter(most_frequent_code)
 
@@ -445,7 +490,7 @@ func _compile_channel_results(ch: HandChannelState, expected_clean: String, tota
 		"dominant_letter": String(closest_letter.get("letter", "")),
 		"avg_confidence": avg_conf,
 		"hand_precision": clampf(hand_precision, 0.0, 1.0),
-		"finger_status": ch.last_guidance.get("finger_status", {}),
-		"hints": ch.last_guidance.get("hints", [])
+		"finger_status": final_guidance.get("finger_status", {}),
+		"hints": final_guidance.get("hints", [])
 	}
 
