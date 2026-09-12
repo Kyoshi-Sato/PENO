@@ -105,3 +105,38 @@ func test_lesson_service_instant_disk_cache() -> void:
 		assert_eq(loaded_lesson.lesson_id, test_lesson_id, "Id da lição deve bater")
 		assert_eq(loaded_lesson.nome_exercicio, "Lição de Teste em Cache")
 		assert_eq(loaded_lesson.sinais.size(), 1)
+
+
+func test_recording_state_waits_for_camera_before_countdown() -> void:
+	var rec: Control = autofree(load("res://GUI/recordingstate/RecordingState.tscn").instantiate())
+	add_child_autofree(rec)
+
+	var dummy_lesson := Lesson.new()
+	dummy_lesson.sinais = [{"nome_sinal": "A", "json_sinal": {}}]
+
+	# Inicia gravação com a câmera ainda não pronta
+	rec.is_camera_ready_override = false
+	rec.begin(dummy_lesson, 0, 3.0)
+
+	# Deve estar em WAITING_CAMERA e não em COUNTDOWN
+	assert_eq(rec._phase, rec.Phase.WAITING_CAMERA, "Fase deve ser WAITING_CAMERA enquanto a câmera não carregou")
+	assert_eq(rec.lbl_status.text, "Iniciando câmera...", "Status deve indicar espera da câmera")
+
+	# Agora notifica que a câmera carregou
+	rec.notify_camera_ready()
+
+	# Deve ter transitado imediatamente para COUNTDOWN
+	assert_eq(rec._phase, rec.Phase.COUNTDOWN, "Fase deve avançar para COUNTDOWN quando a câmera fica pronta")
+	assert_eq(rec.lbl_status.text, "Prepare-se", "Status deve mudar para Prepare-se")
+	assert_false(rec._tick_timer.is_stopped(), "Timer da contagem regressiva deve estar ativo")
+
+
+func test_holistic_camera_helpers() -> void:
+	var holistic: Node = autofree(load("res://GUI/vision/holistic_landmarker/HolisticLandmarker.tscn").instantiate())
+	add_child_autofree(holistic)
+
+	assert_false(holistic.is_camera_streaming(), "Sem feed ativo, is_camera_streaming deve ser false")
+
+	# wait_for_camera_ready deve retornar de forma limpa e segura sem travar
+	var ready_ok: bool = await holistic.wait_for_camera_ready(0.2)
+	assert_false(ready_ok, "Sem câmera física conectada no teste headless, wait_for_camera_ready deve retornar false com segurança")

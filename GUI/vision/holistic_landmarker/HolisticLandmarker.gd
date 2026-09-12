@@ -61,6 +61,12 @@ signal camera_changed(feed_name: String)
 ## Emitido a cada (re)inicialização bem-sucedida do grafo, com o backend que
 ## de fato subiu — que pode não ser o pedido, se a GPU falhou.
 signal inference_backend_ready(backend: Global.InferenceBackend)
+## Emitido quando a câmera começa a transmitir quadros reais.
+signal camera_ready
+
+var is_camera_ready: bool = false
+var camera_frames_count: int = 0
+var _inference_paused: bool = false
 
 # ─────────────────────────────────────────────
 #  CONTROLE DE RENDER DO OVERLAY (performance)
@@ -102,6 +108,8 @@ func _reset() -> void:
 	capture_frames.clear()
 	capture_frame_index = 0
 	capture_first_packet_ms = -1
+	is_camera_ready = false
+	camera_frames_count = 0
 	if capture_timer and not capture_timer.is_stopped():
 		capture_timer.stop()
 	super()
@@ -126,18 +134,18 @@ func _exit_tree() -> void:
 #  PAUSA / RETOMADA DO FEED (bateria + GPU)
 # ─────────────────────────────────────────────
 
-## Pausa o feed sem desconectar os sinais — retomável com resume_camera().
-## Usado fora do estado de gravação (showcase/feedback) pra parar câmera,
-## readback de GPU e inferência que estavam rodando à toa.
+## Pausa a inferência e processamento pesado fora da gravação.
+## Mantém o feed da câmera ativo para evitar renegociação lenta de hardware (2-4s)
+## ao transicionar entre etapas.
 func pause_camera() -> void:
-	if camera_feed != null:
-		camera_feed.feed_is_active = false
+	render_overlay_enabled = false
+	_inference_paused = true
 
 
-## Retoma o feed. Se os sinais foram desconectados por um _reset (ex.:
-## cancelamento no meio da gravação), refaz o start completo — antes disso
-## um cancel matava a câmera pro resto da sessão.
+## Retoma a inferência da câmera e garante feed ativo.
 func resume_camera() -> void:
+	_inference_paused = false
+	render_overlay_enabled = true
 	if camera_feed == null:
 		return
 	if not camera_feed.frame_changed.is_connected(self._camera_frame_changed):
@@ -294,6 +302,30 @@ func is_active_camera_front() -> bool:
 	if camera_feed == null:
 		return false
 	return camera_feed.get_position() == CameraFeed.FEED_FRONT
+
+
+## Retorna true se a câmera estiver ativamente enviando quadros.
+func is_camera_streaming() -> bool:
+	return camera_feed != null and camera_feed.feed_is_active and is_camera_ready
+
+
+## Aguarda de forma assíncrona a câmera estar pronta e entregando quadros.
+## Possui timeout seguro para não travar em ambientes sem câmera (ex: testes unitários ou permissão negada).
+func wait_for_camera_ready(timeout_seconds: float = 4.0) -> bool:
+	if is_camera_streaming():
+		return true
+	var available := list_available_cameras()
+	if available.is_empty():
+		return false
+
+	var timed_out := false
+	var timer := get_tree().create_timer(timeout_seconds)
+	timer.timeout.connect(func() -> void: timed_out = true)
+
+	while not is_camera_streaming() and not timed_out:
+		await get_tree().process_frame
+
+	return is_camera_streaming()
 
 
 # ═══════════════════════════════════════════════════════════
@@ -492,8 +524,14 @@ func _process_video(image: Image, timestamp_ms: int) -> void:
 	show_result(outputs)
 
 func _process_camera(image: MediaPipeImage, timestamp_ms: int) -> void:
-	if not _task_initialized:
-		return   # sem modelo/task não há o que processar (erro já reportado)
+	camera_frames_count += 1
+	if not is_camera_ready:
+		is_camera_ready = true
+		camera_ready.emit()
+
+	if not _task_initialized or _inference_paused:
+		return   # sem modelo ou em modo de economia, apenas mantém a câmera aquecida
+
 	_perf_submitted += 1
 	_maybe_report_performance()
 	var packet := image.get_packet()

@@ -83,6 +83,8 @@ func _ready() -> void:
 			holistic.connect("landmarks_detected", _on_capture_complete)
 		if holistic.has_signal("camera_changed"):
 			holistic.connect("camera_changed", _on_camera_changed)
+		if holistic.has_signal("camera_ready"):
+			holistic.connect("camera_ready", _on_camera_ready)
 		# Começa desligado — só liga quando entrar no RecordingState.
 		if "render_overlay_enabled" in holistic:
 			holistic.render_overlay_enabled = false
@@ -109,6 +111,12 @@ func _ready() -> void:
 	CameraServer.camera_feed_added.connect(_on_camera_feed_added)
 
 	_load_current_lesson()
+
+
+func _on_camera_ready() -> void:
+	_inject_camera_textures()
+	if recording != null and recording.has_method("notify_camera_ready"):
+		recording.notify_camera_ready()
 
 
 func _load_current_lesson() -> void:
@@ -148,15 +156,35 @@ func _on_lesson_loaded(loaded: Lesson) -> void:
 	_sign_stars.clear()
 	_sign_stars.resize(lesson.sinais.size())
 
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Preparando animações do avatar 3D...", 0.60)
+
 	if animation_player.has_animation_library(LIBRARY_NAME):
 		animation_player.remove_animation_library(LIBRARY_NAME)
 	animation_player.add_animation_library(LIBRARY_NAME, lesson.animation_library)
+
+	# Pré-aquecimento do classificador de IA da forma da mão (TCC)
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Carregando modelo neural de IA...", 0.75)
+	var _engine: RefCounted = HandShapeClassifier.get_shared_engine()
+
+	# Inicialização e verificação da câmera
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Inicializando câmera e visão computacional...", 0.85)
+
+	_auto_select_best_camera()
+
+	# Aguarda a câmera estar pronta (com timeout seguro de 4.0s para não travar se não houver câmera)
+	if holistic != null and holistic.has_method("wait_for_camera_ready"):
+		await holistic.wait_for_camera_ready(4.0)
+
+	_inject_camera_textures()
 
 	state_machine.current_lesson = lesson
 	state_machine.start()
 
 	if _loading_overlay != null and is_instance_valid(_loading_overlay):
-		_loading_overlay.set_progress("Lição carregada!", 1.0)
+		_loading_overlay.set_progress("Exercício pronto!", 1.0)
 		var t := create_tween()
 		t.tween_property(_loading_overlay, "modulate:a", 0.0, DS.DUR_FAST)
 		t.finished.connect(func() -> void:
@@ -286,6 +314,9 @@ func _retry_camera_textures() -> void:
 		if not is_instance_valid(self) or not recording.visible:
 			return
 		_inject_camera_textures()
+		if holistic != null and holistic.has_method("is_camera_streaming") and holistic.is_camera_streaming():
+			if recording != null and recording.has_method("notify_camera_ready"):
+				recording.notify_camera_ready()
 
 
 # ---------- TRANSIÇÕES DE ESTADO ----------
