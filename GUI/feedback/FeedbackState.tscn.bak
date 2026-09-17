@@ -3,19 +3,7 @@
 [ext_resource type="Script" uid="uid://dwgrv10wlxww4" path="res://GUI/feedback/FeedbackState.gd" id="1_feedback"]
 [ext_resource type="Theme" uid="uid://dxghb8dsnj4fw" path="res://themes/handsign.tres" id="2_theme"]
 [ext_resource type="Script" uid="uid://bga24jwnii2q" path="res://Scripts/PrecisionRing.gd" id="3_ring"]
-[ext_resource type="Shader" uid="uid://cbhcunoo7cdqx" path="res://assets/shaders/ui_glass.gdshader" id="10_glass"]
 [ext_resource type="Script" uid="uid://c7f7jaumm0owa" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_glass"]
-shader = ExtResource("10_glass")
-shader_parameter/desfoque = 4.5
-shader_parameter/tingimento = 0.72
-shader_parameter/brilho = 0.05
-shader_parameter/dessaturacao = 0.6
-shader_parameter/fade_topo = 0.1
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_folha"]
-bg_color = Color(1, 1, 1, 1)
 
 [node name="FeedbackState" type="Control" unique_id=1041563451]
 layout_mode = 3
@@ -28,18 +16,16 @@ mouse_filter = 1
 theme = ExtResource("2_theme")
 script = ExtResource("1_feedback")
 
-[node name="Vidro" type="Panel" parent="." unique_id=146079716]
-unique_name_in_owner = true
-material = SubResource("ShaderMaterial_glass")
+[node name="Background" type="ColorRect" parent="." unique_id=146079716]
 layout_mode = 1
-anchors_preset = -1
+anchors_preset = 15
 anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_folha")
+grow_vertical = 2
+color = Color(0.9607843, 0.96862745, 1, 1)
 
 [node name="Scroll" type="ScrollContainer" parent="." unique_id=884247569]
-unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -52,26 +38,19 @@ horizontal_scroll_mode = 0
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 40
-theme_override_constants/margin_top = 0
+theme_override_constants/margin_top = 232
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 56
 script = ExtResource("99_frame")
-apply_top = false
 
 [node name="VBox" type="VBoxContainer" parent="Scroll/Margin" unique_id=2068065773]
 layout_mode = 2
 theme_override_constants/separation = 32
 
-[node name="Espaco" type="Control" parent="Scroll/Margin/VBox" unique_id=1146079717]
-unique_name_in_owner = true
-layout_mode = 2
-mouse_filter = 2
-
 [node name="ResultCard" type="PanelContainer" parent="Scroll/Margin/VBox" unique_id=1896185701]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 1
-theme_type_variation = &"Bare"
 
 [node name="Inner" type="VBoxContainer" parent="Scroll/Margin/VBox/ResultCard" unique_id=944870735]
 layout_mode = 2
@@ -186,8 +165,3 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"GhostButton"
 text = "Voltar para a trilha"
-
-[node name="Rodape" type="Control" parent="Scroll/Margin/VBox" unique_id=1146079718]
-unique_name_in_owner = true
-layout_mode = 2
-mouse_filter = 2

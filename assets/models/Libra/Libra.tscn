@@ -23,38 +23,7 @@
 [ext_resource type="Shader" uid="uid://6eeismom5t31" path="res://assets/shaders/toon_prepass_double.gdshader" id="toon_ppd"]
 [ext_resource type="Shader" uid="uid://kw7a2omg1784" path="res://assets/shaders/toon_scissor.gdshader" id="toon_sc"]
 [ext_resource type="Shader" uid="uid://dkao11ntvqsv0" path="res://assets/shaders/toon_scissor_double.gdshader" id="toon_scd"]
-
-[sub_resource type="GDScript" id="GDScript_ipa65"]
-script/source = "extends Node3D
-@onready var face: MeshInstance3D = $Libra2/Armature_002/Skeleton3D/Face
-@onready var anim_player: AnimationPlayer = $Libra2/Armature_002/AnimationPlayer
-var eye_blend_value: float = 0
-var blend_target: float = 1.0
-var blend_speed: float = 15.0
-var tempo_piscada: float = 0.0
-var blink_delay: float = 0.0
-
-# Called when the node enters the scene tree for the first time.
-func _on_animation_player_animation_finished(anim_name: StringName) -> void:
-	anim_player.play(\"Idle\", 0.25)
-
-func _physics_process(delta: float) -> void:
-	tempo_piscada += delta
-	if tempo_piscada >= blink_delay:
-		eye_blend_value = lerp(eye_blend_value, blend_target, blend_speed * delta)
-
-		if abs(eye_blend_value - blend_target) <= 0.01:
-			if blend_target == 0: # Piscar completo
-				blend_target = 1.0
-				tempo_piscada = 0.0
-				blink_delay = randf_range(1.0, 5.0) 
-			else:
-				blend_target = 0 # Fechar
-
-	if abs(face.get(\"blend_shapes/%s\" % \"Fcl_EYE_Close\") - eye_blend_value) > 0.01:
-		var shape_path: String = \"blend_shapes/%s\" % \"Fcl_EYE_Close\"
-		face.set(shape_path, eye_blend_value)
-"
+[ext_resource type="Script" path="res://Scripts/AvatarFace.gd" id="1_face"]
 
 [sub_resource type="ShaderMaterial" id="StandardMaterial3D_d73xv"]
 resource_name = "N00_001_01_Bottoms_01_CLOTH (Instance).001"
@@ -2964,7 +2933,7 @@ material = SubResource("StandardMaterial3D_bhwmm")
 size = Vector2(5, 3)
 
 [node name="Libra" type="Node3D" unique_id=277880837]
-script = SubResource("GDScript_ipa65")
+script = ExtResource("1_face")
 
 [node name="Libra2" type="Node3D" parent="." unique_id=1339649656]
 

@@ -25,7 +25,7 @@ var _sign_stars: Array[int] = []
 @onready var recording: Control = $States/RecordingState
 @onready var feedback: Control = $States/FeedbackState
 
-@onready var avatar_root: Node3D = $AvatarViewportContainer/AvatarViewport/Avatar
+@onready var avatar_root: AvatarFace = $AvatarViewportContainer/AvatarViewport/Avatar
 @onready var animation_player: AnimationPlayer = $AvatarViewportContainer/AvatarViewport/Avatar/Libra2/Armature_002/AnimationPlayer
 
 @onready var holistic: Node = $HolisticLandmarker
@@ -272,6 +272,7 @@ func _on_enter_showcase() -> void:
 	if holistic and holistic.has_method("pause_camera"):
 		holistic.pause_camera()
 	btn_settings.disabled = false
+	avatar_root.set_expression(&"neutro")
 	sign_showcase.setup(lesson, current_sign_index)
 
 
@@ -286,6 +287,7 @@ func _on_enter_recording() -> void:
 	# Garante que as texturas estão atualizadas (a anotada pode só existir
 	# depois do primeiro frame ser processado, então atualizamos toda vez).
 	_inject_camera_textures()
+	avatar_root.set_expression(&"neutro")
 	var duration := _compute_capture_duration()
 	recording.begin(lesson, current_sign_index, duration)
 	_retry_camera_textures()
@@ -297,6 +299,9 @@ func _on_enter_feedback() -> void:
 	if holistic and holistic.has_method("pause_camera"):
 		holistic.pause_camera()
 	btn_settings.disabled = false
+	# A validação roda numa worker thread e demora; a boneca segura uma
+	# expectativa nesse intervalo em vez de ficar parada de cara neutra.
+	avatar_root.set_expression(&"expectativa")
 	feedback.evaluate(lesson, current_sign_index, _last_payload)
 
 
@@ -305,6 +310,9 @@ func _on_enter_feedback() -> void:
 func _on_evaluation_completed(stars: int) -> void:
 	if current_sign_index >= 0 and current_sign_index < _sign_stars.size():
 		_sign_stars[current_sign_index] = maxi(_sign_stars[current_sign_index], stars)
+	# A boneca reage à nota: é a mesma informação das estrelas, dita por quem
+	# o usuário estava olhando o tempo todo.
+	avatar_root.set_expression_for_stars(stars)
 
 
 ## Duração da gravação = duração da animação do sinal atual + margem.

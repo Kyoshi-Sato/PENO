@@ -34,6 +34,28 @@ const GROUP_LABELS: Dictionary = {
 	"Mão Direita": "Mão direita",
 }
 
+## Fração da altura da tela em que o topo do vidro descansa. O que fica
+## acima é a janela por onde a boneca aparece.
+const VIDRO_EM_REPOUSO := 0.50
+## Distância entre o topo do vidro e o primeiro texto. Precisa ser maior que
+## o degradê do shader (`fade_topo`), senão o título cai na faixa ainda
+## transparente e fica ilegível sobre a boneca.
+const FOLGA_DO_DEGRADE := 300.0
+## Altura do degradê no topo do vidro, em fração do painel, quando ele está
+## em repouso. Vai a zero conforme a folha expande.
+const DEGRADE_EM_REPOUSO := 0.085
+## Quanto o vidro tinge em repouso e totalmente expandido. Expandido ele fica
+## quase opaco: é aí que o texto precisa de contraste, e a boneca já não
+## aparece mesmo.
+const TINGIMENTO_EM_REPOUSO := 0.72
+const TINGIMENTO_EXPANDIDO := 0.94
+
+@onready var vidro: Panel = %Vidro
+@onready var scroll: ScrollContainer = %Scroll
+@onready var espaco: Control = %Espaco
+@onready var rodape: Control = %Rodape
+@onready var vbox: VBoxContainer = %Espaco.get_parent() as VBoxContainer
+
 @onready var result_card: PanelContainer = %ResultCard
 @onready var lbl_title: Label = %TitleLabel
 @onready var lbl_subtitle: Label = %SubtitleLabel
@@ -92,6 +114,52 @@ func _ready() -> void:
 	if validator == null:
 		validator = MotionComparatorValidator.new()
 
+	scroll.get_v_scroll_bar().value_changed.connect(_on_scroll)
+	resized.connect(_posiciona_vidro)
+	_posiciona_vidro()
+
+
+func _on_scroll(_valor: float) -> void:
+	_posiciona_vidro()
+
+
+## O vidro não contém a rolagem — ele desliza junto com ela. Em repouso o topo
+## fica em `VIDRO_EM_REPOUSO` e a boneca aparece acima; conforme o usuário rola
+## para cima o topo sobe até 0 e a folha toma a tela inteira.
+##
+## A altura do painel é sempre a da tela, e não a distância até a borda: assim
+## o degradê do shader (que é medido em fração do painel) vale um número fixo
+## de pixels, e o texto não muda de contraste conforme a folha cresce.
+func _posiciona_vidro() -> void:
+	var altura := size.y
+	if altura <= 0.0:
+		return
+	var repouso := altura * VIDRO_EM_REPOUSO
+	espaco.custom_minimum_size.y = repouso + FOLGA_DO_DEGRADE
+
+	# Para a folha conseguir subir os `repouso` pixels inteiros, o conteúdo
+	# precisa ser rolável por pelo menos isso. Uma avaliação curta (poucos
+	# grupos no detalhamento) não chegava lá e a folha parava no meio do
+	# caminho — daí o rodapé calculado, e não um valor fixo.
+	var sem_rodape := vbox.get_combined_minimum_size().y - rodape.custom_minimum_size.y
+	var faltando := maxf(altura + repouso - sem_rodape, 0.0)
+	if absf(faltando - rodape.custom_minimum_size.y) > 1.0:
+		rodape.custom_minimum_size.y = faltando
+	var topo := maxf(repouso - float(scroll.scroll_vertical), 0.0)
+	vidro.offset_top = topo
+	vidro.offset_bottom = topo + altura
+
+	# Em repouso o vidro é translúcido e nasce num degradê — é o que deixa a
+	# boneca se dissolver nele. Expandido ele vira superfície de leitura, e
+	# tanto o degradê quanto a transparência atrapalhariam: o título ficaria
+	# sobre o rosto dela. Então os dois somem conforme a folha sobe.
+	var expansao: float = 1.0 - topo / maxf(repouso, 1.0)
+	var mat := vidro.material as ShaderMaterial
+	if mat != null:
+		mat.set_shader_parameter("fade_topo", DEGRADE_EM_REPOUSO * (1.0 - expansao))
+		mat.set_shader_parameter("tingimento",
+			lerpf(TINGIMENTO_EM_REPOUSO, TINGIMENTO_EXPANDIDO, expansao))
+
 
 ## Dispara a validação em uma thread do WorkerThreadPool e mostra a UI de
 ## espera. O resultado chega em _on_validation_done via call_deferred —
@@ -143,6 +211,8 @@ func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
 ## Estado de espera: a tela some quase inteira e sobra só o essencial, para
 ## não piscar números velhos enquanto a nova análise roda.
 func _show_analyzing() -> void:
+	scroll.scroll_vertical = 0
+	_posiciona_vidro()
 	lbl_title.text = "Analisando…"
 	lbl_subtitle.text = "Comparando sua execução com o sinal de referência."
 	ring.value = 0.0

@@ -3,6 +3,14 @@
 [ext_resource type="Script" uid="uid://bvwxc6fthc42r" path="res://GUI/signshowcase/SignShowcaseState.gd" id="1_showcase"]
 [ext_resource type="Theme" path="res://themes/handsign.tres" id="2_theme"]
 [ext_resource type="Script" path="res://GUI/components/ScreenFrame.gd" id="99_frame"]
+[ext_resource type="Shader" path="res://assets/shaders/ui_glass.gdshader" id="10_glass"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_glass"]
+shader = ExtResource("10_glass")
+shader_parameter/desfoque = 4.5
+shader_parameter/tingimento = 0.72
+shader_parameter/brilho = 0.05
+shader_parameter/dessaturacao = 0.6
 
 [node name="SignShowcaseState" type="Control"]
 layout_mode = 3
@@ -32,6 +40,7 @@ size_flags_vertical = 3
 mouse_filter = 2
 
 [node name="BottomCard" type="PanelContainer" parent="Layout"]
+material = SubResource("ShaderMaterial_glass")
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"Sheet"
