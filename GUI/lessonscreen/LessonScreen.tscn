@@ -52,7 +52,7 @@ projection = 1
 fov = 50.0
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="AvatarViewportContainer/AvatarViewport" unique_id=97662081]
-transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 4, 0)
+transform = Transform3D(0.865426, -0.000000, 0.501036, 0.262444, 0.851839, -0.453313, -0.426802, 0.523803, 0.737204, -1.100000, 2.600000, 1.900000)
 light_energy = 1.2
 
 [node name="Avatar" parent="AvatarViewportContainer/AvatarViewport" unique_id=576804927 instance=ExtResource("7_avatar")]
