@@ -16,6 +16,25 @@ shader_parameter/brilho = -0.02
 shader_parameter/dessaturacao = 0.25
 shader_parameter/fade_topo = 0.0
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fala"]
+shader = ExtResource("101_glass")
+shader_parameter/desfoque = 3.0
+shader_parameter/tingimento = 0.62
+shader_parameter/brilho = 0.06
+shader_parameter/dessaturacao = 0.45
+shader_parameter/fade_topo = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_fala"]
+content_margin_left = 28.0
+content_margin_top = 22.0
+content_margin_right = 28.0
+content_margin_bottom = 22.0
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 32
+corner_radius_top_right = 32
+corner_radius_bottom_right = 32
+corner_radius_bottom_left = 8
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_info"]
 content_margin_left = 24.0
 content_margin_top = 24.0
@@ -46,22 +65,42 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.9607843, 0.96862745, 1, 1)
 
-[node name="SubViewport" type="SubViewport" parent="." unique_id=21114249]
+[node name="Palco" type="SubViewportContainer" parent="." unique_id=21114250]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Palco" unique_id=21114249]
 transparent_bg = true
-size = Vector2i(936, 800)
+handle_input_locally = false
 render_target_update_mode = 4
 
-[node name="Avatar" parent="SubViewport" unique_id=1405090323 instance=ExtResource("3_avatar")]
+[node name="Avatar" parent="Palco/SubViewport" unique_id=1405090323 instance=ExtResource("3_avatar")]
 
-[node name="Camera3D" type="Camera3D" parent="SubViewport" unique_id=1191121402]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.33, 1.25)
+[node name="Camera3D" type="Camera3D" parent="Palco/SubViewport" unique_id=1191121402]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.27, 1.25)
 projection = 1
 fov = 45.0
-size = 0.80159986
+size = 1.15
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SubViewport" unique_id=1178825223]
-transform = Transform3D(0.865426, 0, 0.501036, 0.262444, 0.851839, -0.453313, -0.426802, 0.523803, 0.737204, -1.1, 2.6, 1.9)
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Palco/SubViewport" unique_id=1178825223]
+transform = Transform3D(0.865426, -0.000000, 0.501036, 0.262444, 0.851839, -0.453313, -0.426802, 0.523803, 0.737204, -1.100000, 2.600000, 1.900000)
 light_energy = 1.3
+
+[node name="Toque" type="Control" parent="." unique_id=21114251]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
 
 [node name="Outer" type="VBoxContainer" parent="." unique_id=769665817]
 layout_mode = 1
@@ -85,10 +124,12 @@ script = ExtResource("99_frame")
 
 [node name="Root" type="VBoxContainer" parent="Outer/Frame" unique_id=313307431]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 0
 
 [node name="TopArea" type="MarginContainer" parent="Outer/Frame/Root" unique_id=1835183295]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/margin_left = 40
 theme_override_constants/margin_top = 72
 theme_override_constants/margin_right = 40
@@ -96,16 +137,19 @@ theme_override_constants/margin_bottom = 8
 
 [node name="Stack" type="VBoxContainer" parent="Outer/Frame/Root/TopArea" unique_id=911413463]
 layout_mode = 2
-theme_override_constants/separation = 32
+mouse_filter = 2
+theme_override_constants/separation = 24
 
 [node name="Header" type="HBoxContainer" parent="Outer/Frame/Root/TopArea/Stack" unique_id=894789593]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 16
 
 [node name="Greeting" type="VBoxContainer" parent="Outer/Frame/Root/TopArea/Stack/Header" unique_id=8268215]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
+mouse_filter = 2
 theme_override_constants/separation = 0
 
 [node name="Hello" type="Label" parent="Outer/Frame/Root/TopArea/Stack/Header/Greeting" unique_id=1324465306]
@@ -130,57 +174,65 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Hero" type="PanelContainer" parent="Outer/Frame/Root/TopArea/Stack" unique_id=1011616198]
-unique_name_in_owner = true
+[node name="Vazio" type="Control" parent="Outer/Frame/Root" unique_id=141090029]
 layout_mode = 2
-theme_type_variation = &"CardHero"
-
-[node name="Palco" type="Control" parent="Outer/Frame/Root/TopArea/Stack/Hero" unique_id=1649785748]
-custom_minimum_size = Vector2(0, 800)
-layout_mode = 2
+size_flags_vertical = 3
 mouse_filter = 2
 
-[node name="Mascot" type="TextureRect" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco" unique_id=1275851053]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="BottomArea" type="MarginContainer" parent="Outer/Frame/Root" unique_id=141090030]
+layout_mode = 2
 mouse_filter = 2
-expand_mode = 1
-stretch_mode = 5
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 24
+script = ExtResource("99_frame")
+apply_top = false
 
-[node name="Info" type="PanelContainer" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco" unique_id=1498383819]
+[node name="Coluna" type="VBoxContainer" parent="Outer/Frame/Root/BottomArea" unique_id=141090031]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="Fala" type="PanelContainer" parent="Outer/Frame/Root/BottomArea/Coluna" unique_id=141090032]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_fala")
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_fala")
+
+[node name="FalaLabel" type="Label" parent="Outer/Frame/Root/BottomArea/Coluna/Fala" unique_id=141090033]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Oi! Que bom te ver."
+autowrap_mode = 3
+
+[node name="Hero" type="PanelContainer" parent="Outer/Frame/Root/BottomArea/Coluna" unique_id=1011616198]
+unique_name_in_owner = true
 material = SubResource("ShaderMaterial_glass")
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 0
+layout_mode = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_info")
 
-[node name="Text" type="VBoxContainer" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco/Info" unique_id=1910200560]
+[node name="Text" type="VBoxContainer" parent="Outer/Frame/Root/BottomArea/Coluna/Hero" unique_id=1498383819]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Eyebrow" type="Label" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco/Info/Text" unique_id=1910200559]
+[node name="Eyebrow" type="Label" parent="Outer/Frame/Root/BottomArea/Coluna/Hero/Text" unique_id=1910200559]
 layout_mode = 2
 theme_type_variation = &"OnPrimaryMuted"
 text = "CONTINUE DE ONDE PAROU"
 
-[node name="HeroTitle" type="Label" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco/Info/Text" unique_id=1449116114]
+[node name="HeroTitle" type="Label" parent="Outer/Frame/Root/BottomArea/Coluna/Hero/Text" unique_id=1449116114]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"OnPrimaryH2"
 text = "Carregando trilha…"
 autowrap_mode = 3
 
-[node name="HeroProgress" type="ProgressBar" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco/Info/Text" unique_id=2073604521]
+[node name="HeroProgress" type="ProgressBar" parent="Outer/Frame/Root/BottomArea/Coluna/Hero/Text" unique_id=2073604521]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 26)
 layout_mode = 2
@@ -188,52 +240,17 @@ theme_type_variation = &"ProgressBarOnDark"
 max_value = 1.0
 show_percentage = false
 
-[node name="HeroProgressText" type="Label" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco/Info/Text" unique_id=153409491]
+[node name="HeroProgressText" type="Label" parent="Outer/Frame/Root/BottomArea/Coluna/Hero/Text" unique_id=153409491]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"OnPrimaryMuted"
 
-[node name="HeroCta" type="Button" parent="Outer/Frame/Root/TopArea/Stack/Hero/Palco/Info/Text" unique_id=376108089]
+[node name="HeroCta" type="Button" parent="Outer/Frame/Root/BottomArea/Coluna/Hero/Text" unique_id=376108089]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
 theme_type_variation = &"AccentButton"
 text = "Praticar agora"
-
-[node name="SectionRow" type="HBoxContainer" parent="Outer/Frame/Root/TopArea/Stack" unique_id=141090028]
-layout_mode = 2
-
-[node name="SectionTitle" type="Label" parent="Outer/Frame/Root/TopArea/Stack/SectionRow" unique_id=145344701]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"H2"
-text = "Sua trilha"
-
-[node name="SeeAll" type="Button" parent="Outer/Frame/Root/TopArea/Stack/SectionRow" unique_id=1789523936]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-theme_type_variation = &"GhostButton"
-text = "Ver tudo"
-
-[node name="TrailScroll" type="ScrollContainer" parent="Outer/Frame/Root" unique_id=44614880]
-layout_mode = 2
-size_flags_vertical = 3
-horizontal_scroll_mode = 0
-
-[node name="TrailMargin" type="MarginContainer" parent="Outer/Frame/Root/TrailScroll" unique_id=1957575296]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/margin_left = 40
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 40
-theme_override_constants/margin_bottom = 32
-
-[node name="PathContainer" type="VBoxContainer" parent="Outer/Frame/Root/TrailScroll/TrailMargin" unique_id=546096716]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 0
 
 [node name="Nav" type="PanelContainer" parent="Outer" unique_id=1648538215]
 unique_name_in_owner = true
