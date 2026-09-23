@@ -61,6 +61,12 @@ signal camera_changed(feed_name: String)
 ## Emitido a cada (re)inicialização bem-sucedida do grafo, com o backend que
 ## de fato subiu — que pode não ser o pedido, se a GPU falhou.
 signal inference_backend_ready(backend: Global.InferenceBackend)
+## Emitido quando a câmera começa a transmitir quadros reais.
+signal camera_ready
+
+var is_camera_ready: bool = false
+var camera_frames_count: int = 0
+var _inference_paused: bool = false
 
 # ─────────────────────────────────────────────
 #  CONTROLE DE RENDER DO OVERLAY (performance)
@@ -84,6 +90,7 @@ var render_timestamp_tolerance_us: int = 5000  # 5ms
 var _last_render_at_ms: int = 0
 
 func _ready() -> void:
+	running_mode = MediaPipeVisionTask.RUNNING_MODE_LIVE_STREAM
 	super()
 	# Trocar o backend em Configurações no meio de uma lição refaz o grafo
 	# aqui mesmo — sem isso a escolha só valeria na próxima abertura do app.
@@ -92,6 +99,20 @@ func _ready() -> void:
 	capture_timer.one_shot = true
 	add_child(capture_timer)
 	capture_timer.timeout.connect(_on_capture_timeout)
+
+
+## Garante que o runner de Live Stream do MediaPipe está pronto antes de iniciar o exercício.
+func ensure_task_initialized() -> void:
+	if not _task_initialized:
+		running_mode = MediaPipeVisionTask.RUNNING_MODE_LIVE_STREAM
+		_init_task()
+
+
+func _ensure_monitoring_feeds() -> void:
+	if not CameraServer.monitoring_feeds:
+		CameraServer.monitoring_feeds = true
+	_initialize_camera_extension()
+
 
 func _on_inference_backend_changed(_backend: Global.InferenceBackend) -> void:
 	_init_task()
@@ -102,6 +123,8 @@ func _reset() -> void:
 	capture_frames.clear()
 	capture_frame_index = 0
 	capture_first_packet_ms = -1
+	is_camera_ready = false
+	camera_frames_count = 0
 	if capture_timer and not capture_timer.is_stopped():
 		capture_timer.stop()
 	super()
@@ -126,18 +149,18 @@ func _exit_tree() -> void:
 #  PAUSA / RETOMADA DO FEED (bateria + GPU)
 # ─────────────────────────────────────────────
 
-## Pausa o feed sem desconectar os sinais — retomável com resume_camera().
-## Usado fora do estado de gravação (showcase/feedback) pra parar câmera,
-## readback de GPU e inferência que estavam rodando à toa.
+## Pausa a inferência e processamento pesado fora da gravação.
+## Mantém o feed da câmera ativo para evitar renegociação lenta de hardware (2-4s)
+## ao transicionar entre etapas.
 func pause_camera() -> void:
-	if camera_feed != null:
-		camera_feed.feed_is_active = false
+	render_overlay_enabled = false
+	_inference_paused = true
 
 
-## Retoma o feed. Se os sinais foram desconectados por um _reset (ex.:
-## cancelamento no meio da gravação), refaz o start completo — antes disso
-## um cancel matava a câmera pro resto da sessão.
+## Retoma a inferência da câmera e garante feed ativo.
 func resume_camera() -> void:
+	_inference_paused = false
+	render_overlay_enabled = true
 	if camera_feed == null:
 		return
 	if not camera_feed.frame_changed.is_connected(self._camera_frame_changed):
@@ -155,8 +178,7 @@ func resume_camera() -> void:
 ## position: "front" | "back" | "unspecified"
 func list_available_cameras() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	if not CameraServer.monitoring_feeds:
-		CameraServer.monitoring_feeds = true
+	_ensure_monitoring_feeds()
 	var feeds: Array[CameraFeed] = CameraServer.feeds()
 	for feed in feeds:
 		var pos_str := "unspecified"
@@ -296,9 +318,54 @@ func is_active_camera_front() -> bool:
 	return camera_feed.get_position() == CameraFeed.FEED_FRONT
 
 
+## Retorna true se a câmera estiver ativamente enviando quadros.
+func is_camera_streaming() -> bool:
+	return camera_feed != null and camera_feed.feed_is_active and is_camera_ready
+
+
+## Aguarda de forma assíncrona a câmera estar pronta e entregando quadros.
+## Possui timeout seguro para não travar em ambientes sem câmera (ex: testes unitários ou permissão negada).
+func wait_for_camera_ready(timeout_seconds: float = 6.0) -> bool:
+	if is_camera_streaming():
+		return true
+
+	_ensure_monitoring_feeds()
+
+	var deadline_ms: int = Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+
+	# 1. Aguarda feeds serem descobertos pelo sistema operacional
+	# Em sistemas Windows/Android a enumeração de hardware pode demorar até 1.5 - 2s
+	while CameraServer.feeds().is_empty() and Time.get_ticks_msec() < deadline_ms:
+		await get_tree().process_frame
+
+	if CameraServer.feeds().is_empty():
+		push_warning("[HolisticLandmarker] Nenhuma câmera física encontrada após aguardar enumeração")
+		return false
+
+	# 2. Seleciona e inicia a melhor câmera se ainda não tiver feito
+	if camera_feed == null:
+		var best_id: int = pick_best_camera_id()
+		if best_id >= 0:
+			if not start_camera_with_feed(best_id):
+				push_warning("[HolisticLandmarker] Falha ao iniciar câmera id=%d" % best_id)
+				return false
+		else:
+			return false
+	elif not camera_feed.feed_is_active:
+		resume_camera()
+
+	# 3. Aguarda a câmera começar a entregar quadros reais (is_camera_ready == true)
+	while not is_camera_streaming() and Time.get_ticks_msec() < deadline_ms:
+		await get_tree().process_frame
+
+	return is_camera_streaming()
+
+
 # ═══════════════════════════════════════════════════════════
-#  CAPTURA (lógica original)
+#  CAPTURA (lógica original com travas de segurança)
 # ═══════════════════════════════════════════════════════════
+
+const MAX_CAPTURE_FRAMES: int = 360 # ~12 segundos a 30fps
 
 func _begin_capture(tempo: float) -> void:
 	# Garante o feed vivo: um _reset anterior (cancelamento) o desativa e
@@ -314,16 +381,27 @@ func _begin_capture(tempo: float) -> void:
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
 	capture_output_path = "user://anim_cache/holistic_capture_%s.json" % stamp
 
+	var safe_tempo: float = clampf(tempo, 1.0, 15.0) if tempo > 0.0 else 10.0
 	if capture_timer and not capture_timer.is_stopped():
 		capture_timer.stop()
-	capture_timer.wait_time = tempo
+	capture_timer.wait_time = safe_tempo
 	capture_timer.start()
 
-	print_debug("Captura iniciada por: %.2f segundos" % tempo)
+	print_debug("Captura iniciada por: %.2f segundos" % safe_tempo)
+
+
+## Interrompe e finaliza imediatamente a gravação ativa.
+func stop_capture() -> void:
+	if not capture_active:
+		return
+	capture_active = false
+	if capture_timer and not capture_timer.is_stopped():
+		capture_timer.stop()
+	_export_capture_json()
+
 
 func _on_capture_timeout() -> void:
-	capture_active = false
-	_export_capture_json()
+	stop_capture()
 
 ## Roda na thread de callbacks do GDMP. Um resultado chegando é a única
 ## prova de que o delegate sobreviveu à abertura dos nós; o veredito vai
@@ -491,9 +569,52 @@ func _process_video(image: Image, timestamp_ms: int) -> void:
 	var outputs := task_runner.process({"image_in": packet})
 	show_result(outputs)
 
+const INFERENCE_TARGET_FPS: float = 30.0
+const MIN_INFERENCE_INTERVAL_MS: int = 33
+const MAX_INFLIGHT_FRAMES: int = 1
+const MIN_READBACK_INTERVAL_MS: int = 30
+
+var _last_inference_submitted_ms: int = 0
+var _last_readback_ms: int = 0
+
+
+func _camera_frame_changed() -> void:
+	# Economia massiva de CPU/GPU: se a inferência estiver pausada (durante exibição do avatar 3D)
+	# e a câmera já foi confirmada pronta, não faz o readback pesado GPU->CPU a 60-120fps.
+	if _inference_paused and is_camera_ready:
+		return
+
+	# Limita taxa de readback de textura na CPU para ~30 FPS
+	var now_ms: int = Time.get_ticks_msec()
+	if (now_ms - _last_readback_ms) < MIN_READBACK_INTERVAL_MS:
+		return
+	_last_readback_ms = now_ms
+
+	super._camera_frame_changed()
+
+
 func _process_camera(image: MediaPipeImage, timestamp_ms: int) -> void:
-	if not _task_initialized:
-		return   # sem modelo/task não há o que processar (erro já reportado)
+	camera_frames_count += 1
+	if not is_camera_ready:
+		is_camera_ready = true
+		camera_ready.emit()
+
+	if not _task_initialized or _inference_paused:
+		return   # sem modelo ou em modo de economia, apenas mantém a câmera aquecida
+
+	var now_ms: int = Time.get_ticks_msec()
+
+	# 1. Throttling de taxa de quadros (não sobrecarregar CPU/GPU acima de 30 FPS)
+	if (now_ms - _last_inference_submitted_ms) < MIN_INFERENCE_INTERVAL_MS:
+		return
+
+	# 2. Backpressure / Drop-if-busy: se o MediaPipe ainda estiver ocupado processando
+	# o quadro anterior na thread C++, descarta este quadro para evitar estouro de memória (1.7 GB) e lag.
+	var in_flight: int = _perf_submitted - _perf_results
+	if in_flight > MAX_INFLIGHT_FRAMES:
+		return
+
+	_last_inference_submitted_ms = now_ms
 	_perf_submitted += 1
 	_maybe_report_performance()
 	var packet := image.get_packet()
@@ -668,6 +789,11 @@ func _append_capture_frame(frame_entry: Dictionary) -> void:
 	frame_entry["frame"] = capture_frame_index
 	capture_frames.append(frame_entry)
 	capture_frame_index += 1
+
+	# Trava de segurança: impede acúmulo descontrolado de quadros na memória
+	if capture_frames.size() >= MAX_CAPTURE_FRAMES:
+		push_warning("[HolisticLandmarker] Limite máximo de quadros (%d) atingido. Finalizando captura." % MAX_CAPTURE_FRAMES)
+		stop_capture()
 
 func _build_hand_entry(outputs: Dictionary, key: String, handedness: String) -> Dictionary:
 	if not outputs.has(key):

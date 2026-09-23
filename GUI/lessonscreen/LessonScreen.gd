@@ -34,6 +34,9 @@ var _sign_stars: Array[int] = []
 @onready var step_indicator: StepIndicator = %StepIndicator
 @onready var camera_dialog: CameraSelectorDialog = $CameraSelectorDialog
 
+const LoadingOverlayScript := preload("res://GUI/components/LoadingOverlay.gd")
+var _loading_overlay: LoadingOverlay = null
+
 var btn_back: IconButton
 var btn_settings: IconButton
 
@@ -68,6 +71,7 @@ func _ready() -> void:
 	recording.recording_finished.connect(_on_recording_finished)
 	recording.cancel_requested.connect(_on_recording_cancelled)
 	recording.request_start_capture.connect(_on_request_start_capture)
+	recording.request_stop_capture.connect(_on_request_stop_capture)
 	recording.request_reset_capture.connect(_on_request_reset_capture)
 
 	feedback.retry_requested.connect(_on_retry)
@@ -80,6 +84,8 @@ func _ready() -> void:
 			holistic.connect("landmarks_detected", _on_capture_complete)
 		if holistic.has_signal("camera_changed"):
 			holistic.connect("camera_changed", _on_camera_changed)
+		if holistic.has_signal("camera_ready"):
+			holistic.connect("camera_ready", _on_camera_ready)
 		# Começa desligado — só liga quando entrar no RecordingState.
 		if "render_overlay_enabled" in holistic:
 			holistic.render_overlay_enabled = false
@@ -89,6 +95,14 @@ func _ready() -> void:
 	recording.visible = false
 	feedback.visible = false
 
+	# Overlay de carregamento estilizado
+	_loading_overlay = LoadingOverlayScript.new()
+	add_child(_loading_overlay)
+	_loading_overlay.set_progress("Iniciando exercício...", 0.10)
+
+	if not LessonService.lesson_progress.is_connected(_on_lesson_progress):
+		LessonService.lesson_progress.connect(_on_lesson_progress)
+
 	# Pré-seleciona a melhor câmera disponível. Em web/mobile pode levar
 	# alguns frames pro CameraServer popular feeds — então fazemos call_deferred.
 	call_deferred("_auto_select_best_camera")
@@ -97,32 +111,119 @@ func _ready() -> void:
 	# via logcat: câmeras enumeradas, nenhuma selecionada). Retry por evento:
 	CameraServer.camera_feed_added.connect(_on_camera_feed_added)
 
+	_load_current_lesson()
+
+
+func _on_camera_ready() -> void:
+	_inject_camera_textures()
+	if recording != null and recording.has_method("notify_camera_ready"):
+		recording.notify_camera_ready()
+
+
+func _load_current_lesson() -> void:
 	var lesson_id := debug_lesson_id
 	if lesson_id < 0:
 		lesson_id = Global.current_lesson_id
 	if lesson_id < 0:
+		if _loading_overlay != null:
+			_loading_overlay.show_error("Nenhuma lição selecionada.", Callable(), _on_back)
 		push_error("Nenhuma lesson_id definida")
 		return
+
+	if _loading_overlay != null:
+		_loading_overlay.reset_loading("Carregando Exercício %d" % lesson_id)
+		_loading_overlay.visible = true
+		_loading_overlay.modulate.a = 1.0
+
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("start_timer"):
+		p.start_timer("LESSON_SCREEN_LOAD_%d" % lesson_id)
 
 	LessonService.fetch_lesson(lesson_id, _on_lesson_loaded, _on_lesson_failed)
 
 
+func _on_lesson_progress(_lid: int, step_name: String, percent: float) -> void:
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress(step_name, percent)
+
+
 func _on_lesson_loaded(loaded: Lesson) -> void:
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("end_timer"):
+		p.end_timer("LESSON_SCREEN_LOAD_%d" % loaded.lesson_id, {"status": "SUCCESS"})
+
 	lesson = loaded
 	current_sign_index = 0
 	_sign_stars.clear()
 	_sign_stars.resize(lesson.sinais.size())
 
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Carregando dados da lição...", 0.25)
+	await get_tree().process_frame
+
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Preparando animações do avatar 3D...", 0.45)
+
 	if animation_player.has_animation_library(LIBRARY_NAME):
 		animation_player.remove_animation_library(LIBRARY_NAME)
 	animation_player.add_animation_library(LIBRARY_NAME, lesson.animation_library)
+	await get_tree().process_frame
+
+	# Pré-aquecimento do classificador de IA da forma da mão (TCC)
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Carregando modelo neural de IA...", 0.65)
+	var _engine: RefCounted = HandShapeClassifier.get_shared_engine()
+	await get_tree().process_frame
+
+	# Inicialização e verificação do modelo de visão computacional (MediaPipe)
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Inicializando visão computacional...", 0.80)
+	if holistic != null and holistic.has_method("ensure_task_initialized"):
+		holistic.ensure_task_initialized()
+	await get_tree().process_frame
+
+	# Inicialização e verificação da câmera
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Conectando à câmera...", 0.90)
+
+	_auto_select_best_camera()
+
+	# Aguarda a câmera e visão estarem prontas (com timeout seguro de 6.0s para não travar se não houver câmera)
+	var camera_ok: bool = false
+	if holistic != null and holistic.has_method("wait_for_camera_ready"):
+		camera_ok = await holistic.wait_for_camera_ready(6.0)
+		if not camera_ok:
+			push_warning("LessonScreen: câmera não respondeu a tempo ou não está disponível")
+
+	_inject_camera_textures()
 
 	state_machine.current_lesson = lesson
 	state_machine.start()
 
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.set_progress("Exercício pronto!", 1.0)
+		# Garante tempo de leitura para o usuário acompanhar a finalização da carga
+		await get_tree().create_timer(0.4).timeout
+		var t := create_tween()
+		t.tween_property(_loading_overlay, "modulate:a", 0.0, DS.DUR_BASE)
+		t.finished.connect(func() -> void:
+			if is_instance_valid(_loading_overlay):
+				_loading_overlay.visible = false
+		)
+
 
 func _on_lesson_failed(error: String) -> void:
 	push_error("Falha ao carregar lição: %s" % error)
+	var p: Node = get_node_or_null("/root/Profiler")
+	if p != null and p.has_method("log_event"):
+		p.log_event("LESSON_ERROR", error)
+
+	if _loading_overlay != null and is_instance_valid(_loading_overlay):
+		_loading_overlay.show_error(
+			"Não foi possível carregar a lição:\n%s\n\nVerifique sua conexão ou tente novamente." % error,
+			_load_current_lesson,
+			_on_back
+		)
 
 
 # ---------- CÂMERA ----------
@@ -232,6 +333,9 @@ func _retry_camera_textures() -> void:
 		if not is_instance_valid(self) or not recording.visible:
 			return
 		_inject_camera_textures()
+		if holistic != null and holistic.has_method("is_camera_streaming") and holistic.is_camera_streaming():
+			if recording != null and recording.has_method("notify_camera_ready"):
+				recording.notify_camera_ready()
 
 
 # ---------- TRANSIÇÕES DE ESTADO ----------
@@ -277,6 +381,7 @@ func _on_enter_showcase() -> void:
 
 
 func _on_enter_recording() -> void:
+	_last_payload.clear()
 	_show_only(recording)
 	_set_chrome_step(1)
 	if holistic and holistic.has_method("resume_camera"):
@@ -289,6 +394,10 @@ func _on_enter_recording() -> void:
 	_inject_camera_textures()
 	avatar_root.set_expression(&"neutro")
 	var duration := _compute_capture_duration()
+	if holistic != null and holistic.has_method("is_camera_streaming") and holistic.is_camera_streaming():
+		recording.notify_camera_ready()
+	else:
+		recording.is_camera_ready = false
 	recording.begin(lesson, current_sign_index, duration)
 	_retry_camera_textures()
 
@@ -355,6 +464,11 @@ func _on_request_start_capture(duration_seconds: float) -> void:
 		holistic._begin_capture(duration_seconds)
 	else:
 		push_warning("HolisticLandmarker._begin_capture() indisponível")
+
+
+func _on_request_stop_capture() -> void:
+	if holistic and holistic.has_method("stop_capture"):
+		holistic.stop_capture()
 
 
 func _on_request_reset_capture() -> void:

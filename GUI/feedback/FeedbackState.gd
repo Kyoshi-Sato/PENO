@@ -76,10 +76,14 @@ const TINGIMENTO_EXPANDIDO := 0.94
 @onready var btn_retry: Button = %RetryButton
 @onready var btn_modules: Button = %BackToMapButton
 
+const ParallelSignValidatorScript := preload("res://Scripts/ParallelSignValidator.gd")
+const ComparisonCardScript := preload("res://GUI/components/ComparisonCard.gd")
+
 ## Validator usado para comparar a gravação do usuário com a referência.
 ## Deixe null para usar o MotionComparatorValidator padrão.
 var validator: SignValidator = null
 
+var _comparison_card: PanelContainer = null
 var _stars: StarRow
 var _attempts: int = 1
 var _last_sign_index: int = -1
@@ -112,7 +116,15 @@ func _ready() -> void:
 	stars_row.add_child(_stars)
 
 	if validator == null:
-		validator = MotionComparatorValidator.new()
+		validator = ParallelSignValidatorScript.new()
+
+	_comparison_card = ComparisonCardScript.new()
+	_comparison_card.visible = false
+	var v_box: Node = breakdown.get_parent()
+	if v_box != null:
+		v_box.add_child(_comparison_card)
+		var breakdown_idx: int = breakdown.get_index()
+		v_box.move_child(_comparison_card, breakdown_idx + 1)
 
 	scroll.get_v_scroll_bar().value_changed.connect(_on_scroll)
 	resized.connect(_posiciona_vidro)
@@ -185,7 +197,12 @@ func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
 	_show_analyzing()
 
 	# A referência (json_sinal) já vem no formato {video_info, frames} do LessonService.
-	var reference: Dictionary = sinal.get("json_sinal", {}) as Dictionary
+	var reference: Dictionary = (sinal.get("json_sinal", {}) as Dictionary).duplicate()
+	reference["nome_sinal"] = sinal.get("nome_sinal", "")
+
+	var final_payload: Dictionary = payload.duplicate() if payload is Dictionary else {}
+	if not final_payload.has("nome_sinal") or String(final_payload["nome_sinal"]).is_empty():
+		final_payload["nome_sinal"] = sinal.get("nome_sinal", "")
 
 	_eval_generation += 1
 	var generation := _eval_generation
@@ -203,7 +220,7 @@ func evaluate(lesson: Lesson, sign_index: int, payload: Dictionary) -> void:
 	# correspondente vaza a vaga da tarefa no pool, e o engine aborta ao sair
 	# do processo. Recolhemos em `_reap_task`, na entrega do resultado.
 	_tasks[generation] = WorkerThreadPool.add_task(func() -> void:
-		var result: Dictionary = val.validate(payload, reference)
+		var result: Dictionary = val.validate(final_payload, reference)
 		deliver.call_deferred(result, generation)
 	)
 
@@ -222,6 +239,8 @@ func _show_analyzing() -> void:
 	_clear(reward_row)
 	_clear(breakdown)
 	_clear(metrics_row)
+	if _comparison_card != null:
+		_comparison_card.visible = false
 	lbl_breakdown_title.visible = false
 	module_card.visible = false
 	_set_buttons_enabled(false)
@@ -252,6 +271,17 @@ func _on_validation_done(result: Dictionary, generation: int) -> void:
 	_fill_breakdown()
 	_fill_metrics(precision)
 	_fill_module_progress()
+
+	if _comparison_card != null:
+		if bool(result.get("has_ai", false)):
+			_comparison_card.populate(
+				result.get("legacy_result", {}) as Dictionary,
+				result.get("ai_result", {}) as Dictionary
+			)
+			_comparison_card.visible = true
+		else:
+			_comparison_card.visible = false
+	_posiciona_vidro()
 
 	_set_buttons_enabled(true)
 	Motion.fade_in(result_card, DS.DUR_BASE, 0.0)

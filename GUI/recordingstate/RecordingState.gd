@@ -27,6 +27,7 @@ extends Control
 signal recording_finished(payload: Dictionary)
 signal cancel_requested
 signal request_start_capture(duration_seconds: float)
+signal request_stop_capture
 signal request_reset_capture
 
 const COUNTDOWN_SECONDS := 3
@@ -48,7 +49,7 @@ const FRAMING_TIPS: Array[Dictionary] = [
 ## mesma informação que o numeral já dá, no canal sonoro.
 const COUNTDOWN_PITCHES: Array[float] = [1.0, 1.12, 1.26]
 
-enum Phase { IDLE, COUNTDOWN, RECORDING, DONE }
+enum Phase { IDLE, WAITING_CAMERA, COUNTDOWN, RECORDING, DONE }
 
 @onready var lbl_sign: Label = %SignPill
 @onready var lbl_hint: Label = %HintLabel
@@ -63,6 +64,8 @@ enum Phase { IDLE, COUNTDOWN, RECORDING, DONE }
 
 @onready var camera_preview: TextureRect = %CameraPreview
 
+var is_camera_ready: bool = false
+var is_camera_ready_override: bool = false
 var _phase: Phase = Phase.IDLE
 var _reference_landmarks: Dictionary = {}
 var _current_sign_name: String = ""
@@ -127,6 +130,20 @@ func bind_camera_textures(raw: Texture2D, annotated: Texture2D) -> void:
 	_apply_preview_texture()
 
 
+func notify_camera_ready() -> void:
+	is_camera_ready = true
+	if _phase == Phase.WAITING_CAMERA:
+		lbl_status.text = "Prepare-se"
+		lbl_hint.text = "Posicione-se em frente à câmera"
+		_start_countdown()
+
+
+func _is_camera_ready() -> bool:
+	if is_camera_ready_override:
+		return true
+	return is_camera_ready
+
+
 ## true = câmera frontal (espelha horizontalmente o preview).
 func set_camera_mirrored(mirrored: bool) -> void:
 	if camera_preview:
@@ -152,8 +169,6 @@ func begin(lesson: Lesson, sign_index: int, duration_seconds: float = -1.0) -> v
 		_recording_seconds = DEFAULT_RECORDING_SECONDS
 
 	lbl_sign.text = DS.sentence_case(_current_sign_name)
-	lbl_hint.text = "Posicione-se em frente à câmera"
-	lbl_status.text = "Prepare-se"
 
 	capture_bar.visible = false
 	capture_bar.value = 0.0
@@ -168,7 +183,39 @@ func begin(lesson: Lesson, sign_index: int, duration_seconds: float = -1.0) -> v
 	camera_preview.visible = true
 	_apply_preview_texture()
 
-	_start_countdown()
+	if not _is_camera_ready():
+		_wait_for_camera_and_start()
+	else:
+		lbl_hint.text = "Posicione-se em frente à câmera"
+		lbl_status.text = "Prepare-se"
+		_start_countdown()
+
+
+func _wait_for_camera_and_start() -> void:
+	_phase = Phase.WAITING_CAMERA
+	lbl_status.text = "Iniciando câmera..."
+	lbl_hint.text = "Aguarde a câmera carregar para se posicionar"
+	lbl_countdown.visible = true
+	_set_countdown("⏳")
+
+	# Aguarda até a câmera estar pronta com timeout de segurança (8.0s)
+	var timed_out := false
+	var timer := get_tree().create_timer(8.0)
+	timer.timeout.connect(func() -> void: timed_out = true)
+
+	while not _is_camera_ready() and not timed_out:
+		await get_tree().process_frame
+		_apply_preview_texture()
+
+	if _phase == Phase.WAITING_CAMERA:
+		if _is_camera_ready():
+			lbl_status.text = "Prepare-se"
+			lbl_hint.text = "Posicione-se em frente à câmera"
+			_start_countdown()
+		else:
+			lbl_status.text = "Câmera não detectada"
+			lbl_hint.text = "Verifique as permissões da câmera nas configurações"
+			lbl_countdown.text = "⚠️"
 
 
 func on_capture_complete(export_data: Dictionary) -> void:
@@ -185,6 +232,7 @@ func on_capture_complete(export_data: Dictionary) -> void:
 
 	var payload := {
 		"sign_id": _current_sign_name,
+		"nome_sinal": _current_sign_name,
 		"frames": export_data.get("frames", []),
 		"video_info": export_data.get("video_info", {}),
 		"reference": _reference_landmarks,
@@ -265,6 +313,7 @@ func _on_tick() -> void:
 				lbl_status.text = "Analisando seu sinal…"
 				lbl_hint.text = "Só um instante"
 				_tick_timer.stop()
+				request_stop_capture.emit()
 		_:
 			_tick_timer.stop()
 

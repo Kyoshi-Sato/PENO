@@ -31,6 +31,7 @@ extends MarginContainer
 
 var _base := Vector4i.ZERO
 var _captured: bool = false
+var _is_applying: bool = false
 
 
 func _ready() -> void:
@@ -68,8 +69,9 @@ func _capture_base() -> void:
 
 
 func _apply() -> void:
-	if not _captured:
+	if not _captured or _is_applying:
 		return
+	_is_applying = true
 
 	var inset := safe_insets(self)
 	var side_pad: int = 0
@@ -79,14 +81,21 @@ func _apply() -> void:
 		if extra > 0.0:
 			side_pad = int(extra * 0.5)
 
-	add_theme_constant_override("margin_left",
-		_base.x + side_pad + (inset.x if apply_sides else 0))
-	add_theme_constant_override("margin_right",
-		_base.z + side_pad + (inset.z if apply_sides else 0))
-	add_theme_constant_override("margin_top",
-		_base.y + (inset.y if apply_top else 0))
-	add_theme_constant_override("margin_bottom",
-		_base.w + (inset.w if apply_bottom else 0))
+	var target_left := _base.x + side_pad + (inset.x if apply_sides else 0)
+	var target_right := _base.z + side_pad + (inset.z if apply_sides else 0)
+	var target_top := _base.y + (inset.y if apply_top else 0)
+	var target_bottom := _base.w + (inset.w if apply_bottom else 0)
+
+	if get_theme_constant("margin_left") != target_left:
+		add_theme_constant_override("margin_left", target_left)
+	if get_theme_constant("margin_right") != target_right:
+		add_theme_constant_override("margin_right", target_right)
+	if get_theme_constant("margin_top") != target_top:
+		add_theme_constant_override("margin_top", target_top)
+	if get_theme_constant("margin_bottom") != target_bottom:
+		add_theme_constant_override("margin_bottom", target_bottom)
+
+	_is_applying = false
 
 
 ## Recuos de safe area em UNIDADES DE CANVAS (não pixels físicos).
