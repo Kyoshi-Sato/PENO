@@ -80,7 +80,8 @@ const ParallelSignValidatorScript := preload("res://Scripts/ParallelSignValidato
 const ComparisonCardScript := preload("res://GUI/components/ComparisonCard.gd")
 
 ## Validator usado para comparar a gravação do usuário com a referência.
-## Deixe null para usar o MotionComparatorValidator padrão.
+## Deixe null para seguir a escolha do usuário em Configurações
+## (`Global.get_validator_kind`); os testes injetam o seu.
 var validator: SignValidator = null
 
 var _comparison_card: PanelContainer = null
@@ -116,7 +117,10 @@ func _ready() -> void:
 	stars_row.add_child(_stars)
 
 	if validator == null:
-		validator = ParallelSignValidatorScript.new()
+		validator = _cria_validador()
+		# Só seguimos a preferência quando fomos nós que criamos o validador:
+		# um injetado (testes) tem que continuar valendo.
+		Global.validator_kind_changed.connect(_on_validator_kind_changed)
 
 	_comparison_card = ComparisonCardScript.new()
 	_comparison_card.visible = false
@@ -129,6 +133,19 @@ func _ready() -> void:
 	scroll.get_v_scroll_bar().value_changed.connect(_on_scroll)
 	resized.connect(_posiciona_vidro)
 	_posiciona_vidro()
+
+
+## Instancia o validador escolhido em Configurações.
+func _cria_validador() -> SignValidator:
+	if Global.get_validator_kind() == Global.ValidatorKind.MOTION:
+		return MotionComparatorValidator.new()
+	return ParallelSignValidatorScript.new()
+
+
+## O validador é criado uma vez no _ready. Sem isto, trocar a preferência com
+## a tela já montada só valeria no próximo boot do app.
+func _on_validator_kind_changed(_kind: Global.ValidatorKind) -> void:
+	validator = _cria_validador()
 
 
 func _on_scroll(_valor: float) -> void:

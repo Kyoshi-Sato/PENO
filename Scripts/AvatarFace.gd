@@ -53,7 +53,7 @@ var _alvo: Dictionary = {}
 
 func _ready() -> void:
 	_espera_piscada = randf_range(1.0, 4.0)
-
+	anim_player.play("Idle")
 
 func _on_animation_player_animation_finished(_anim_name: StringName) -> void:
 	anim_player.play("Idle", 0.25)

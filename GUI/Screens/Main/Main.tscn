@@ -8,14 +8,6 @@
 [ext_resource type="PackedScene" uid="uid://b7sily1mghod0" path="res://GUI/settings/SettingsDialog.tscn" id="100_settings"]
 [ext_resource type="Shader" uid="uid://cbhcunoo7cdqx" path="res://assets/shaders/ui_glass.gdshader" id="101_glass"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_glass"]
-shader = ExtResource("101_glass")
-shader_parameter/desfoque = 3.5
-shader_parameter/tingimento = 0.58
-shader_parameter/brilho = -0.02
-shader_parameter/dessaturacao = 0.25
-shader_parameter/fade_topo = 0.0
-
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_fala"]
 shader = ExtResource("101_glass")
 shader_parameter/desfoque = 3.0
@@ -34,6 +26,14 @@ corner_radius_top_left = 32
 corner_radius_top_right = 32
 corner_radius_bottom_right = 32
 corner_radius_bottom_left = 8
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_glass"]
+shader = ExtResource("101_glass")
+shader_parameter/desfoque = 3.5
+shader_parameter/tingimento = 0.58
+shader_parameter/brilho = -0.02
+shader_parameter/dessaturacao = 0.25
+shader_parameter/fade_topo = 0.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_info"]
 content_margin_left = 24.0
@@ -56,14 +56,14 @@ grow_vertical = 2
 theme = ExtResource("1_theme")
 script = ExtResource("2_script")
 
-[node name="Background" type="ColorRect" parent="." unique_id=1201447780]
+[node name="Background" type="ColorRect" parent="." unique_id=679379584]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.9607843, 0.96862745, 1, 1)
+color = Color(0.64619637, 0.6982971, 0.88625455, 1)
 
 [node name="Palco" type="SubViewportContainer" parent="." unique_id=21114250]
 layout_mode = 1
@@ -78,6 +78,7 @@ stretch = true
 [node name="SubViewport" type="SubViewport" parent="Palco" unique_id=21114249]
 transparent_bg = true
 handle_input_locally = false
+size = Vector2i(1080, 1920)
 render_target_update_mode = 4
 
 [node name="Avatar" parent="Palco/SubViewport" unique_id=1405090323 instance=ExtResource("3_avatar")]
@@ -89,7 +90,7 @@ fov = 45.0
 size = 1.15
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="Palco/SubViewport" unique_id=1178825223]
-transform = Transform3D(0.865426, -0.000000, 0.501036, 0.262444, 0.851839, -0.453313, -0.426802, 0.523803, 0.737204, -1.100000, 2.600000, 1.900000)
+transform = Transform3D(0.865426, 0, 0.501036, 0.262444, 0.851839, -0.453313, -0.426802, 0.523803, 0.737204, -1.1, 2.6, 1.9)
 light_energy = 1.3
 
 [node name="Toque" type="Control" parent="." unique_id=21114251]
@@ -100,7 +101,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
 
 [node name="Outer" type="VBoxContainer" parent="." unique_id=769665817]
 layout_mode = 1
@@ -196,6 +196,7 @@ theme_override_constants/separation = 16
 
 [node name="Fala" type="PanelContainer" parent="Outer/Frame/Root/BottomArea/Coluna" unique_id=141090032]
 unique_name_in_owner = true
+visible = false
 material = SubResource("ShaderMaterial_fala")
 layout_mode = 2
 size_flags_horizontal = 3

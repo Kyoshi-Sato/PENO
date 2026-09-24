@@ -1,5 +1,6 @@
 [gd_scene format=4 uid="uid://bfuukuyqtqblt"]
 
+[ext_resource type="Script" uid="uid://dwo2ywslbleiu" path="res://Scripts/AvatarFace.gd" id="1_face"]
 [ext_resource type="Texture2D" uid="uid://dueaaj1a0rfwe" path="res://textures/_14.001.png" id="1_pp2rl"]
 [ext_resource type="Texture2D" uid="uid://ie4qwu8wxril" path="res://textures/_10.001.png" id="4_ojmjt"]
 [ext_resource type="Texture2D" uid="uid://bmyx06ysh875c" path="res://textures/_10.002.png" id="6_ul0bk"]
@@ -8,7 +9,6 @@
 [ext_resource type="Texture2D" uid="uid://bp6orkbmf6ehb" path="res://textures/_13.002.png" id="11_rwgxj"]
 [ext_resource type="Texture2D" uid="uid://ygv2ir73yj05" path="res://textures/_14.002.png" id="13_hlfng"]
 [ext_resource type="Texture2D" uid="uid://bhpd8x8ujxq0g" path="res://textures/_15.002.png" id="14_pxnk6"]
-[ext_resource type="Animation" uid="uid://cg8ny23iqyym" path="res://CENOURA.tres" id="15_s1wfx"]
 [ext_resource type="Texture2D" uid="uid://bso3l4ovpomje" path="res://textures/_01.002.png" id="15_ufw5w"]
 [ext_resource type="Texture2D" uid="uid://200nkojd76jd" path="res://textures/_02.002.png" id="16_c82up"]
 [ext_resource type="Texture2D" uid="uid://c3w56n3ji8wxi" path="res://textures/_03.002.png" id="17_s5t8i"]
@@ -23,7 +23,6 @@
 [ext_resource type="Shader" uid="uid://6eeismom5t31" path="res://assets/shaders/toon_prepass_double.gdshader" id="toon_ppd"]
 [ext_resource type="Shader" uid="uid://kw7a2omg1784" path="res://assets/shaders/toon_scissor.gdshader" id="toon_sc"]
 [ext_resource type="Shader" uid="uid://dkao11ntvqsv0" path="res://assets/shaders/toon_scissor_double.gdshader" id="toon_scd"]
-[ext_resource type="Script" path="res://Scripts/AvatarFace.gd" id="1_face"]
 
 [sub_resource type="ShaderMaterial" id="StandardMaterial3D_d73xv"]
 resource_name = "N00_001_01_Bottoms_01_CLOTH (Instance).001"
@@ -2920,7 +2919,6 @@ tracks/51/keys = PackedFloat32Array(0, 1, 0.48801053, 0.47580472, -0.53933614, 0
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_s1wfx"]
 _data = {
-&"CENOURA": ExtResource("15_s1wfx"),
 &"Idle": SubResource("Animation_yem8c")
 }
 

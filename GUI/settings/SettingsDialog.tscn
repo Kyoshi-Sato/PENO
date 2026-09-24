@@ -99,6 +99,31 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8
 
+[node name="ValidatorCard" type="PanelContainer" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_type_variation = &"CardFlat"
+
+[node name="Box" type="VBoxContainer" parent="Margin/VBox/Scroll/Content/ValidatorCard"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Heading" type="Label" parent="Margin/VBox/Scroll/Content/ValidatorCard/Box"]
+layout_mode = 2
+theme_type_variation = &"H3"
+text = "Como o sinal é avaliado"
+
+[node name="ValidatorHelp" type="Label" parent="Margin/VBox/Scroll/Content/ValidatorCard/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BodySm"
+autowrap_mode = 3
+
+[node name="ValidatorToggle" type="Button" parent="Margin/VBox/Scroll/Content/ValidatorCard/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 130)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+
 [node name="DataCard" type="PanelContainer" parent="Margin/VBox/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"CardFlat"

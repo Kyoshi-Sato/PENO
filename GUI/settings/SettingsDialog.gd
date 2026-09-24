@@ -17,6 +17,8 @@ signal data_erased
 
 @onready var scroll: ScrollContainer = %Scroll
 @onready var btn_sound: Button = %SoundToggle
+@onready var btn_validator: Button = %ValidatorToggle
+@onready var validator_help: Label = %ValidatorHelp
 @onready var backend_help: Label = %BackendHelp
 @onready var backend_list: VBoxContainer = %BackendList
 @onready var summary: Label = %DataSummary
@@ -34,6 +36,8 @@ var _erase_label: Label
 ## Conteúdo do botão de som. Ver `_decorate_sound_button`.
 var _sound_label: Label
 var _sound_check: HSIcon
+var _validator_label: Label
+var _validator_check: HSIcon
 
 
 func _ready() -> void:
@@ -42,10 +46,12 @@ func _ready() -> void:
 	_build_backend_options()
 	_decorate_erase_button()
 	_decorate_sound_button()
+	_decorate_validator_button()
 
 	close_requested.connect(hide)
 	btn_close.pressed.connect(hide)
 	btn_sound.pressed.connect(_on_sound_pressed)
+	btn_validator.pressed.connect(_on_validator_pressed)
 	btn_erase.pressed.connect(_on_erase_pressed)
 	btn_cancel.pressed.connect(_show_confirm.bind(false))
 	btn_confirm.pressed.connect(_on_confirm_pressed)
@@ -57,6 +63,7 @@ func _ready() -> void:
 	Motion.attach_press(btn_erase)
 	Motion.attach_press(btn_confirm)
 	Motion.attach_press(btn_sound)
+	Motion.attach_press(btn_validator)
 	# Os dois de fechar/cancelar não tinham o retorno de toque que o resto do
 	# app tem — sem ele, os únicos botões mudos do diálogo seriam justamente
 	# os que o usuário aperta para sair.
@@ -73,6 +80,7 @@ func _ready() -> void:
 func _refresh() -> void:
 	_show_confirm(false)
 	_sync_sound_button()
+	_sync_validator_button()
 	_build_backend_options()
 	summary.text = _summary_text()
 	confirm_text.text = _confirm_text()
@@ -202,6 +210,73 @@ func _decorate_sound_button() -> void:
 	row.add_child(_sound_check)
 
 	_sync_sound_button()
+
+
+# ═══════════════════════════════════════════════════════════
+#  COMO O SINAL É AVALIADO
+# ═══════════════════════════════════════════════════════════
+#
+# Binário, então é um toggle e não a lista de rádio do backend: são dois
+# caminhos, não um leque. A ajuda descreve o caminho ATIVO, porque é o que
+# está valendo na próxima gravação — e diz o que ele ignora, que é a única
+# informação capaz de fazer alguém querer trocar.
+
+func _on_validator_pressed() -> void:
+	var com_ia: bool = Global.get_validator_kind() == Global.ValidatorKind.AI
+	Global.set_validator_kind(
+		Global.ValidatorKind.MOTION if com_ia else Global.ValidatorKind.AI)
+	_sync_validator_button()
+
+
+func _sync_validator_button() -> void:
+	if _validator_label == null:
+		return
+	var com_ia: bool = Global.get_validator_kind() == Global.ValidatorKind.AI
+	_validator_label.text = "Forma da mão (IA)" if com_ia else "Trajetória do movimento"
+	_validator_label.add_theme_color_override("font_color",
+		DS.TEXT_ON_PRIMARY if com_ia else DS.TEXT)
+	_validator_check.visible = com_ia
+	btn_validator.theme_type_variation = &"PrimaryButton" if com_ia else &"SecondaryButton"
+	validator_help.text = _validator_help_text()
+
+
+func _validator_help_text() -> String:
+	if Global.get_validator_kind() == Global.ValidatorKind.AI:
+		return ("A rede classifica a configuração dos dedos e o comparador de "
+			+ "trajetória entra com peso menor (70/30). Pega erro de forma da "
+			+ "mão, que a trajetória sozinha não enxerga, mas custa uma "
+			+ "inferência a cada gravação.")
+	return ("Só o comparador de trajetória, o caminho anterior à IA. Mais "
+		+ "barato e não depende do modelo carregar, mas ignora a "
+		+ "configuração dos dedos: a mão no lugar certo com a forma errada "
+		+ "passa.")
+
+
+## Mesmo arranjo do botão de som: rótulo à esquerda, visto à direita.
+func _decorate_validator_button() -> void:
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.add_theme_constant_override("separation", DS.SPACE_SM)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.offset_left = DS.SPACE_MD
+	row.offset_right = -DS.SPACE_MD
+	btn_validator.add_child(row)
+
+	_validator_label = Label.new()
+	_validator_label.theme_type_variation = &"H3"
+	_validator_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_validator_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_validator_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_validator_label)
+
+	_validator_check = HSIcon.new()
+	_validator_check.icon = HSIcon.Name.SPARKLE
+	_validator_check.color = DS.TEXT_ON_PRIMARY
+	_validator_check.custom_minimum_size = Vector2(52, 52)
+	_validator_check.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_validator_check)
+
+	_sync_validator_button()
 
 
 # ═══════════════════════════════════════════════════════════

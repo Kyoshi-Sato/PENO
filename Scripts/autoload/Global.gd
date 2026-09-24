@@ -805,6 +805,49 @@ func inference_backend_label(backend: InferenceBackend) -> String:
 # de quem não ouve, e deixar desligado por padrão esconderia o recurso de
 # quem ouve.
 
+# ============================================================
+# QUAL VALIDADOR AVALIA A GRAVAÇÃO
+# ============================================================
+#
+# Os dois caminhos respondem à mesma pergunta ("o sinal saiu certo?") por
+# vias diferentes, e nenhum dos dois é estritamente melhor:
+#
+#   IA       `ParallelSignValidator` — a rede classifica a FORMA da mão e o
+#            comparador de trajetória entra com peso menor (70/30). Pega
+#            configuração de dedos, que o DTW sozinho não enxerga, mas
+#            depende do modelo carregar e custa inferência por gravação.
+#
+#   MOVIMENTO `MotionComparatorValidator` — só o DTW de trajetória, que é o
+#            caminho antigo. Mais barato e não depende do modelo; ignora a
+#            forma da mão.
+#
+# Fica em Configurações porque a escolha muda a NOTA do usuário, não só o
+# desempenho — e porque comparar os dois no mesmo sinal é justamente o que
+# o trabalho precisa para defender a escolha.
+enum ValidatorKind { AI, MOTION }
+
+const SETTING_VALIDATOR := "validator_kind"
+
+## Emitido quando o usuário troca o validador em Configurações. Quem já tem
+## um validador instanciado precisa recriá-lo.
+signal validator_kind_changed(kind: ValidatorKind)
+
+
+func get_validator_kind() -> ValidatorKind:
+	var raw: int = int(_settings.get(SETTING_VALIDATOR, ValidatorKind.AI))
+	if raw < 0 or raw > ValidatorKind.MOTION:
+		return ValidatorKind.AI
+	return raw as ValidatorKind
+
+
+func set_validator_kind(kind: ValidatorKind) -> void:
+	if kind == get_validator_kind():
+		return
+	_settings[SETTING_VALIDATOR] = int(kind)
+	_save_settings()
+	validator_kind_changed.emit(kind)
+
+
 const SETTING_SOUND := "sound_enabled"
 
 ## Emitido quando o usuário liga ou desliga o som em Configurações.
