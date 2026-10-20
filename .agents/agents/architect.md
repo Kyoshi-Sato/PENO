@@ -53,6 +53,13 @@ Declare the exact interface, schema, or DTO definitions needed for the task usin
 - Authorization Level: (Public / Authenticated / Role-based)
 - Error Envelopes: (Expected HTTP status codes and error shapes)
 
+### Documentation & Central Reports Impact Plan (Mandatory)
+
+- Target Documentation Files: [e.g., `documentation.md`, `README.md`, module guides]
+- Target Central Reports: [e.g., `C:\DevTools\relatorios/<repo>.md`, `C:\DevTools\relatorios/README.md`]
+- Affected Sections & Topics: [Exact sections, data schemas, API routes, file trees, or build instructions to create or update]
+- Technical Reference Additions: [Types, function signatures, environment variables, CLI commands, or study guide updates to document]
+
 ### Execution Directives for Subagents
 
 - Directive for @core-engineer:
@@ -61,6 +68,9 @@ Declare the exact interface, schema, or DTO definitions needed for the task usin
 - Directive for @ui-specialist:
   - Required component breakdown and props contract matching the schema.
   - State requirements (loading, empty, error, success).
+- Directive for @doc-specialist:
+  - Mandatory synchronization requirements across `documentation.md` (SSOT), `README.md`, and the centralized reports in `C:\DevTools\relatorios/<repo>.md` and `C:\DevTools\relatorios/README.md`.
+  - Specific architectural schemas, component contracts, file tree updates, algorithms, and build instructions to document.
 
 ---
 
