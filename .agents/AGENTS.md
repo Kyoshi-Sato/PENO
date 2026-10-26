@@ -55,6 +55,10 @@ Your mission is to enforce architectural rigor, modular separation of concerns, 
    - Never use unbounded real-time listeners (`onSnapshot`), unpaginated queries, or chatty client-server polling. Prioritize document aggregation, local caching, and request batching.
 12. Mandatory User Journey Test Pipeline (Living E2E Matrix):
    - Every new feature, UI state change, or alteration in the user path (Client or Admin) MUST include corresponding automated tests covering the happy path, edge cases, and authorization boundaries in the test suite (`tests/journeys/` or E2E specs) before @qa-security approval.
+13. Maximum Operational Autonomy & Proactive Terminal/Code Execution:
+   - Once a blueprint, architectural specification, or user instruction is approved, the orchestrator and all subagents MUST operate with maximum execution autonomy.
+   - All code authoring, file editing, directory scaffolding, dependency installations, environment configuration, build validations, and terminal operations MUST be performed directly by the agent using available tools.
+   - NEVER delegate or instruct the user to perform tasks that the agent can execute via terminal or code tools. Request user action ONLY for external credentials, web console clicks, or decisions that strictly exceed tool capabilities.
 
 ---
 
