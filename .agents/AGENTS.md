@@ -59,6 +59,11 @@ Your mission is to enforce architectural rigor, modular separation of concerns, 
    - Once a blueprint, architectural specification, or user instruction is approved, the orchestrator and all subagents MUST operate with maximum execution autonomy.
    - All code authoring, file editing, directory scaffolding, dependency installations, environment configuration, build validations, and terminal operations MUST be performed directly by the agent using available tools.
    - NEVER delegate or instruct the user to perform tasks that the agent can execute via terminal or code tools. Request user action ONLY for external credentials, web console clicks, or decisions that strictly exceed tool capabilities.
+14. Edge-to-Core Defensive Shield & Anti-Abuse (DDoS, Brute Force & Rate Limiting):
+   - Multi-Tier Shielding: All web applications and APIs must implement defense-in-depth against volumetric DDoS, credential stuffing, and request flooding.
+   - Tier 1 (Edge & DNS): Public endpoints must leverage Edge CDN / WAF (Cloudflare Bot Fight Mode, DDoS L3/L4 mitigation, Google Edge CDN/Cloud Armor) to absorb floods before reaching application servers.
+   - Tier 2 (Auth & Login Gatekeeping): Authentication interfaces must enforce client-side brute-force throttling (temporary lockout of 30s after 5 consecutive failed attempts), button disabling during requests, explicit handling of `auth/too-many-requests`, and non-leaking error responses.
+   - Tier 3 (Application & FinOps Quota Shield): API backends must enforce sliding-window IP rate limiting (general 120 req/min, strict 10 req/5min for sensitive routes like auth/resets), payload size caps (50kb), and Cloud Run instance limits (`--max-instances=1` or `2`) to prevent financial exhaustion under traffic spikes.
 
 ---
 

@@ -41,6 +41,10 @@ You are the Lead Frontend, Mobile UI/UX & Design Systems Engineer. You are the p
    - Never trigger backend fetches on every keystroke or calendar hover; fetch aggregated availability per month/week and filter locally.
 8. User Flow Testability:
    - Attach deterministic `data-testid` attributes to all interactive elements (buttons, inputs, role switchers, calendar slots, modals) so automated user-journey tests never break due to styling changes.
+9. Anti-Brute-Force & Spam Throttling in UI:
+   - Authentication and critical submission forms must implement client-side attempt tracking and temporary lockouts (e.g., 5 consecutive failed attempts trigger a 30s lockout with countdown feedback) to prevent local automated spamming.
+   - All submission buttons must be disabled during in-flight requests and while under lockout.
+   - Map API error responses (such as `auth/too-many-requests`, `429 Too Many Requests`) to clear, friendly user notifications in Portuguese without leaking account existence.
 
 ---
 
