@@ -124,6 +124,10 @@ func _ready() -> void:
 
 	_comparison_card = ComparisonCardScript.new()
 	_comparison_card.visible = false
+	# PanelContainer nasce STOP, e um STOP no caminho engole o arrasto antes
+	# de ele chegar no ScrollContainer: com este card visível a folha deixava
+	# de rolar no celular. Os cards que vêm da cena já estão em PASS.
+	_comparison_card.mouse_filter = Control.MOUSE_FILTER_PASS
 	var v_box: Node = breakdown.get_parent()
 	if v_box != null:
 		v_box.add_child(_comparison_card)

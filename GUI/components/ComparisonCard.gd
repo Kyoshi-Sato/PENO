@@ -44,6 +44,10 @@ func _init() -> void:
 	# --- 2. Banner de Correspondência da Postura ---
 	_banner_panel = PanelContainer.new()
 	_banner_panel.theme_type_variation = &"CardFlat"
+	# PanelContainer nasce com mouse_filter STOP, e um STOP no caminho engole
+	# o arrasto antes de ele chegar no ScrollContainer que envolve este card:
+	# no celular a tela de resultado parava de rolar com o card visível.
+	_banner_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	_banner_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root_vbox.add_child(_banner_panel)
 

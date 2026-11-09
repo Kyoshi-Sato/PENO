@@ -534,4 +534,3 @@ func _compile_channel_results(ch: HandChannelState, expected_clean: String, tota
 		"finger_status": final_guidance.get("finger_status", {}),
 		"hints": final_guidance.get("hints", [])
 	}
-

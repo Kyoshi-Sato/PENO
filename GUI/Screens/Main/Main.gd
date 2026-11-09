@@ -51,6 +51,9 @@ func _ready() -> void:
 	_hide_avatar_backdrop()
 
 	settings_dialog.data_erased.connect(_on_data_erased)
+	# A sincronização do boot pode trazer um progresso do servidor (correção
+	# do admin) depois que a Home já se desenhou — o redesenho é o mesmo.
+	Global.progress_replaced.connect(_on_data_erased)
 
 	btn_hero_cta.pressed.connect(_on_practice)
 	toque.gui_input.connect(_on_toque)

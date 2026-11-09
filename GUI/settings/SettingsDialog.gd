@@ -8,8 +8,12 @@ extends Window
 ##   await dialog.data_erased
 ##
 ## O apagar é em duas etapas — o botão revela um cartão de confirmação em vez
-## de agir de imediato. É a única ação irreversível do app: não existe conta
-## remota, então o progresso apagado aqui não volta de lugar nenhum.
+## de agir de imediato. É a única ação irreversível do app: a cópia no
+## servidor (ProgressSync) é sobrescrita com o progresso vazio, então o que
+## foi apagado aqui não volta de lugar nenhum.
+##
+## O cartão de dados também mostra o UUID do usuário — é por ele que o painel
+## admin encontra a pessoa quando ela pede ajuda.
 
 ## Emitido depois que os dados foram apagados, para a tela que abriu o diálogo
 ## se redesenhar (XP, ofensiva e trilha mudaram debaixo dela).
@@ -39,6 +43,10 @@ var _sound_check: HSIcon
 var _validator_label: Label
 var _validator_check: HSIcon
 
+## Linha do UUID no cartão de dados. Ver `_build_account_row`.
+var _account_label: Label
+var _btn_copy_id: Button
+
 
 func _ready() -> void:
 	self.hide()
@@ -47,6 +55,8 @@ func _ready() -> void:
 	_decorate_erase_button()
 	_decorate_sound_button()
 	_decorate_validator_button()
+	_build_account_row()
+	_liberar_arrasto(scroll)
 
 	close_requested.connect(hide)
 	btn_close.pressed.connect(hide)
@@ -73,6 +83,25 @@ func _ready() -> void:
 	_refresh()
 
 
+## Arrastar para rolar exige que o toque CHEGUE no ScrollContainer, e ele só
+## chega se ninguém no caminho parar o evento. `PanelContainer` e os VBox das
+## cartas nascem com mouse_filter STOP, então no celular o dedo parava na
+## carta e a lista não rolava — só dava para rolar na fresta entre elas.
+##
+## PASS deixa o controle receber o evento E repassar ao pai; STOP interrompe
+## ali. Os botões seguem STOP de propósito: o toque neles é para apertar.
+##
+## Feito em código e não nó a nó na cena porque vale para qualquer carta que
+## venha depois — a próxima não precisa lembrar disso.
+func _liberar_arrasto(raiz: Node) -> void:
+	for filho: Node in raiz.get_children():
+		var ct := filho as Control
+		if ct != null and not (ct is BaseButton) \
+				and ct.mouse_filter == Control.MOUSE_FILTER_STOP:
+			ct.mouse_filter = Control.MOUSE_FILTER_PASS
+		_liberar_arrasto(filho)
+
+
 # ═══════════════════════════════════════════════════════════
 #  ESTADO
 # ═══════════════════════════════════════════════════════════
@@ -85,6 +114,7 @@ func _refresh() -> void:
 	summary.text = _summary_text()
 	confirm_text.text = _confirm_text()
 	_set_erase_enabled(_has_data())
+	_sync_account_row()
 
 
 ## Existe algo para apagar? Um "Apagar dados" ativo numa instalação zerada
@@ -126,7 +156,7 @@ func _summary_text() -> String:
 
 func _confirm_text() -> String:
 	return "Some o seu progresso, as estrelas, o XP, a ofensiva e as lições " \
-		+ "já baixadas. Não dá para desfazer, nenhum dado está salvo em servidor."
+		+ "já baixadas, aqui e na cópia guardada no servidor. Não dá para desfazer."
 
 
 ## O rótulo e o ícone do botão são nós filhos, com cor própria: só marcar
@@ -431,6 +461,77 @@ func _on_confirm_pressed() -> void:
 		"Dados apagados desta sessão, mas o arquivo local não pôde ser removido."
 
 	data_erased.emit()
+
+
+# ═══════════════════════════════════════════════════════════
+#  IDENTIFICAÇÃO (UUID) E SINCRONIZAÇÃO
+# ═══════════════════════════════════════════════════════════
+
+## Rótulo com o UUID e o estado da cópia no servidor, e um botão de copiar.
+## Fica entre o resumo e o "Apagar dados", no mesmo cartão: é a resposta a
+## "onde estão os meus dados".
+func _build_account_row() -> void:
+	var box: Node = summary.get_parent()
+
+	_account_label = Label.new()
+	_account_label.theme_type_variation = &"BodySm"
+	_account_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_account_label.add_theme_color_override("font_color", DS.TEXT_MUTED)
+	box.add_child(_account_label)
+	box.move_child(_account_label, summary.get_index() + 1)
+
+	_btn_copy_id = Button.new()
+	_btn_copy_id.text = "Copiar ID"
+	_btn_copy_id.theme_type_variation = &"SecondaryButton"
+	_btn_copy_id.custom_minimum_size = Vector2(0, DS.TOUCH_MIN)
+	_btn_copy_id.focus_mode = Control.FOCUS_NONE
+	box.add_child(_btn_copy_id)
+	box.move_child(_btn_copy_id, _account_label.get_index() + 1)
+	_btn_copy_id.pressed.connect(_on_copy_id_pressed)
+	Motion.attach_press(_btn_copy_id)
+
+	# Método, não lambda: a conexão num autoload sobrevive à troca de cena, e
+	# só a de método é desfeita sozinha quando este diálogo é liberado.
+	ProgressSync.status_changed.connect(_on_sync_status_changed)
+	_sync_account_row()
+
+
+func _on_sync_status_changed(_status: ProgressSync.Status) -> void:
+	_sync_account_row()
+
+
+func _sync_account_row() -> void:
+	if _account_label == null:
+		return
+	var uuid: String = ProgressSync.get_uuid()
+	_btn_copy_id.visible = not uuid.is_empty()
+	var id_line: String = "ID: " + uuid if not uuid.is_empty() \
+		else "ID: ainda não criado (precisa de internet)"
+	_account_label.text = id_line + "\n" + _sync_status_text()
+
+
+func _sync_status_text() -> String:
+	match ProgressSync.get_status():
+		ProgressSync.Status.SYNCING:
+			return "Sincronizando com o servidor…"
+		ProgressSync.Status.SYNCED:
+			return "Progresso salvo no servidor."
+		ProgressSync.Status.OFFLINE:
+			return "Sem conexão. O progresso fica neste aparelho e sobe quando a internet voltar."
+		ProgressSync.Status.BLOCKED:
+			return "Sincronização desativada para este ID. O progresso fica só neste aparelho."
+		ProgressSync.Status.DISABLED:
+			return "Sincronização desligada nesta versão."
+		_:
+			return "Ainda não sincronizado nesta sessão."
+
+
+func _on_copy_id_pressed() -> void:
+	DisplayServer.clipboard_set(ProgressSync.get_uuid())
+	_btn_copy_id.text = "ID copiado"
+	await get_tree().create_timer(2.0).timeout
+	if is_instance_valid(_btn_copy_id):
+		_btn_copy_id.text = "Copiar ID"
 
 
 # ═══════════════════════════════════════════════════════════

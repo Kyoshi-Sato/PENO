@@ -45,6 +45,16 @@ var _progress: Dictionary = {}
 ## Preferências do aparelho. Ver SETTINGS_PATH.
 var _settings: Dictionary = {}
 
+## Emitido a cada gravação do progresso feita pelo próprio app (estrela, XP,
+## prática, reset). O ProgressSync escuta para enviar ao servidor.
+signal progress_changed
+## Emitido por `reset_progress()`, ANTES do `progress_changed` correspondente:
+## avisa que o servidor deve ser sobrescrito, não mesclado.
+signal progress_reset
+## Emitido quando o progresso foi trocado por um que veio do servidor (ver
+## `apply_remote_progress`). Telas abertas usam para se redesenhar.
+signal progress_replaced
+
 
 func _ready() -> void:
 	_load_progress()
@@ -180,6 +190,7 @@ func mark_completed(lesson_id: int, stars: int = 3) -> void:
 
 func reset_progress() -> void:
 	_progress.clear()
+	progress_reset.emit()
 	_save_progress()
 
 
@@ -601,6 +612,11 @@ func _load_progress() -> void:
 
 
 func _save_progress() -> void:
+	_write_progress_file()
+	progress_changed.emit()
+
+
+func _write_progress_file() -> void:
 	var file := FileAccess.open(PROGRESS_PATH, FileAccess.WRITE)
 
 	if file == null:
@@ -609,6 +625,21 @@ func _save_progress() -> void:
 
 	file.store_string(JSON.stringify(_progress))
 	file.close()
+
+
+## Cópia do progresso inteiro, para o ProgressSync enviar ao servidor.
+func get_progress_snapshot() -> Dictionary:
+	return _progress.duplicate(true)
+
+
+## Troca o progresso local por um vindo do servidor (correção do admin, ou a
+## mescla com o que já estava lá). Grava sem emitir `progress_changed` — não é
+## uma alteração nova do usuário, e emitir faria o ProgressSync reenviar o que
+## acabou de receber.
+func apply_remote_progress(data: Dictionary) -> void:
+	_progress = data.duplicate(true)
+	_write_progress_file()
+	progress_replaced.emit()
 
 
 # ============================================================
