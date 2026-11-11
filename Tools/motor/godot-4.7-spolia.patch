@@ -1,0 +1,438 @@
+diff --git a/core/SCsub b/core/SCsub
+index 533bd05..aef3653 100644
+--- a/core/SCsub
++++ b/core/SCsub
+@@ -2,6 +2,7 @@
+ from misc.utility.scons_hints import *
+ 
+ import os
++import re
+ 
+ import core_builders
+ 
+@@ -193,9 +194,12 @@ if encryption_key:
+         "\n*** IMPORTANT: Compiling Godot with custom `SCRIPT_AES256_ENCRYPTION_KEY` set as environment variable."
+         "\n*** Make sure to use templates compiled with this key when exporting a project with encryption.\n"
+     )
++# ProjectSpolia: a semente da máscara vem do cabeçalho gerado por Tools/motor/segredo.py.
++with open(os.path.join(Dir("#").abspath, "core/io/spolia_segredo.gen.h"), encoding="utf-8") as spolia_h:
++    spolia_semente = re.search(r"SPOLIA_MASCARA_SEMENTE 0x([0-9a-f]+)ull", spolia_h.read()).group(1)
+ gen_encrypt = env.CommandNoCache(
+     "script_encryption_key.gen.cpp",
+-    env.Value(encryption_key),
++    env.Value((encryption_key or "") + "|" + spolia_semente),
+     env.Run(core_builders.encryption_key_builder),
+ )
+ env.add_source_files(env.core_sources, gen_encrypt)
+diff --git a/core/core_builders.py b/core/core_builders.py
+index a0f13fa..9240dd3 100644
+--- a/core/core_builders.py
++++ b/core/core_builders.py
+@@ -46,8 +46,24 @@ const unsigned long long GODOT_VERSION_TIMESTAMP = {git_timestamp};
+         )
+ 
+ 
++def _spolia_mascara(semente):
++    # Mesma SplitMix64 de spolia_mascara() em core/io/spolia_segredo.gen.h.
++    m = 0xFFFFFFFFFFFFFFFF
++    estado = semente
++    saida = bytearray()
++    for _ in range(4):
++        estado = (estado + 0x9E3779B97F4A7C15) & m
++        z = estado
++        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & m
++        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & m
++        z ^= z >> 31
++        saida += z.to_bytes(8, "little")
++    return bytes(saida)
++
++
+ def encryption_key_builder(target, source, env):
+-    src = source[0].read() or "0" * 64
++    src, _, semente = (source[0].read() or "").partition("|")
++    src = src or "0" * 64
+     try:
+         buffer = bytes.fromhex(src)
+         if len(buffer) != 32:
+@@ -60,6 +76,10 @@ def encryption_key_builder(target, source, env):
+         )
+         raise
+ 
++    # ProjectSpolia: a chave nunca fica gravada como está; vazia continua zerada.
++    if any(buffer):
++        buffer = bytes(a ^ b for a, b in zip(buffer, _spolia_mascara(int(semente, 16))))
++
+     with methods.generated_wrapper(str(target[0])) as file:
+         file.write(
+             f"""\
+diff --git a/core/io/file_access_encrypted.cpp b/core/io/file_access_encrypted.cpp
+index 270b3dc..7ef2056 100644
+--- a/core/io/file_access_encrypted.cpp
++++ b/core/io/file_access_encrypted.cpp
+@@ -30,6 +30,7 @@
+ 
+ #include "file_access_encrypted.h"
+ 
++#include "core/io/spolia_segredo.gen.h"
+ #include "core/variant/variant.h"
+ 
+ CryptoCore::RandomGenerator *FileAccessEncrypted::_fae_static_rng = nullptr;
+@@ -41,6 +42,53 @@ void FileAccessEncrypted::deinitialize() {
+ 	}
+ }
+ 
++// ProjectSpolia: os pacotes (.pck, sempre abertos sem mágica) não usam o AES
++// puro da Godot. A chave do preset vira duas por SHA-256 com sais secretos; o
++// conteúdo passa por um fluxo AES-OFB com a segunda chave e depois pelo CFB
++// com a primeira, com o IV gravado misturado a um tempero; o cabeçalho troca a
++// ordem e esconde o tamanho. FileAccess::open_encrypted segue o formato padrão.
++
++void FileAccessEncrypted::_spolia_derivar(const Vector<uint8_t> &p_key) {
++	uint8_t buf[96];
++	memcpy(buf, SPOLIA_SAL_CFB, 32);
++	memcpy(buf + 32, p_key.ptr(), 32);
++	memcpy(buf + 64, SPOLIA_SAL_OFB, 32);
++	key.resize(32);
++	CryptoCore::sha256(buf, 64, key.ptrw());
++	key_ofb.resize(32);
++	CryptoCore::sha256(buf + 32, 64, key_ofb.ptrw());
++	memset(buf, 0, sizeof(buf));
++}
++
++void FileAccessEncrypted::_spolia_iv(uint8_t r_iv[16]) const {
++	for (int i = 0; i < 16; i++) {
++		r_iv[i] = iv[i] ^ SPOLIA_TEMPERO_IV[i];
++	}
++}
++
++Error FileAccessEncrypted::_spolia_ofb(uint8_t *r_data, uint64_t p_len, const uint8_t p_iv[16]) const {
++	// CFB sobre zeros devolve o fluxo do OFB; p_len é múltiplo de 16.
++	constexpr uint64_t BLOCO = 65536;
++	uint8_t estado[16];
++	for (int i = 0; i < 16; i++) {
++		estado[i] = p_iv[15 - i];
++	}
++	CryptoCore::AESContext ctx;
++	ctx.set_encode_key((uint8_t *)key_ofb.ptr(), 256);
++	LocalVector<uint8_t> fluxo;
++	fluxo.resize(MIN(p_len, BLOCO));
++	for (uint64_t ofs = 0; ofs < p_len; ofs += BLOCO) {
++		uint64_t n = MIN(BLOCO, p_len - ofs);
++		memset(fluxo.ptr(), 0, n);
++		Error err = ctx.encrypt_cfb(n, estado, fluxo.ptr(), fluxo.ptr());
++		ERR_FAIL_COND_V(err != OK, err);
++		for (uint64_t i = 0; i < n; i++) {
++			r_data[ofs + i] ^= fluxo[i];
++		}
++	}
++	return OK;
++}
++
+ Error FileAccessEncrypted::open_and_parse(Ref<FileAccess> p_base, const Vector<uint8_t> &p_key, Mode p_mode, bool p_with_magic, const Vector<uint8_t> &p_iv) {
+ 	ERR_FAIL_COND_V_MSG(file.is_valid(), ERR_ALREADY_IN_USE, vformat("Can't open file while another file from path '%s' is open.", file->get_path_absolute()));
+ 	ERR_FAIL_COND_V(p_key.size() != 32, ERR_INVALID_PARAMETER);
+@@ -53,7 +101,11 @@ Error FileAccessEncrypted::open_and_parse(Ref<FileAccess> p_base, const Vector<u
+ 		data.clear();
+ 		writing = true;
+ 		file = p_base;
+-		key = p_key;
++		if (use_magic) {
++			key = p_key;
++		} else {
++			_spolia_derivar(p_key);
++		}
+ 		if (p_iv.is_empty()) {
+ 			iv.resize(16);
+ 			if (unlikely(!_fae_static_rng)) {
+@@ -73,19 +125,23 @@ Error FileAccessEncrypted::open_and_parse(Ref<FileAccess> p_base, const Vector<u
+ 
+ 	} else if (p_mode == MODE_READ) {
+ 		writing = false;
+-		key = p_key;
+ 
++		unsigned char md5d[16];
++		iv.resize(16);
+ 		if (use_magic) {
++			key = p_key;
+ 			uint32_t magic = p_base->get_32();
+ 			ERR_FAIL_COND_V(magic != ENCRYPTED_HEADER_MAGIC, ERR_FILE_UNRECOGNIZED);
+-		}
+-
+-		unsigned char md5d[16];
+-		p_base->get_buffer(md5d, 16);
+-		length = p_base->get_64();
+ 
+-		iv.resize(16);
+-		p_base->get_buffer(iv.ptrw(), 16);
++			p_base->get_buffer(md5d, 16);
++			length = p_base->get_64();
++			p_base->get_buffer(iv.ptrw(), 16);
++		} else {
++			_spolia_derivar(p_key);
++			p_base->get_buffer(iv.ptrw(), 16);
++			length = p_base->get_64() ^ SPOLIA_XOR_TAMANHO;
++			p_base->get_buffer(md5d, 16);
++		}
+ 
+ 		base = p_base->get_position();
+ 		ERR_FAIL_COND_V(p_base->get_length() < base + length, ERR_FILE_CORRUPT);
+@@ -98,11 +154,18 @@ Error FileAccessEncrypted::open_and_parse(Ref<FileAccess> p_base, const Vector<u
+ 		uint64_t blen = p_base->get_buffer(data.ptrw(), ds);
+ 		ERR_FAIL_COND_V(blen != ds, ERR_FILE_CORRUPT);
+ 
+-		{
++		if (use_magic) {
+ 			CryptoCore::AESContext ctx;
+ 
+ 			ctx.set_encode_key(key.ptrw(), 256); // Due to the nature of CFB, same key schedule is used for both encryption and decryption!
+ 			ctx.decrypt_cfb(ds, iv.ptrw(), data.ptrw(), data.ptrw());
++		} else {
++			uint8_t iv_cfb[16];
++			_spolia_iv(iv_cfb);
++			CryptoCore::AESContext ctx;
++			ctx.set_encode_key(key.ptrw(), 256);
++			ctx.decrypt_cfb(ds, iv_cfb, data.ptrw(), data.ptrw());
++			ERR_FAIL_COND_V(_spolia_ofb(data.ptrw(), ds, iv.ptr()) != OK, ERR_BUG);
+ 		}
+ 
+ 		data.resize(length);
+@@ -158,13 +221,21 @@ void FileAccessEncrypted::_close() {
+ 
+ 		if (use_magic) {
+ 			file->store_32(ENCRYPTED_HEADER_MAGIC);
+-		}
++			file->store_buffer(hash, 16);
++			file->store_64(data.size());
++			file->store_buffer(iv.ptr(), 16);
+ 
+-		file->store_buffer(hash, 16);
+-		file->store_64(data.size());
+-		file->store_buffer(iv.ptr(), 16);
+-
+-		ctx.encrypt_cfb(len, iv.ptrw(), compressed.ptr(), compressed.ptr());
++			ctx.encrypt_cfb(len, iv.ptrw(), compressed.ptr(), compressed.ptr());
++		} else {
++			file->store_buffer(iv.ptr(), 16);
++			file->store_64(data.size() ^ SPOLIA_XOR_TAMANHO);
++			file->store_buffer(hash, 16);
++
++			ERR_FAIL_COND(_spolia_ofb(compressed.ptr(), len, iv.ptr()) != OK);
++			uint8_t iv_cfb[16];
++			_spolia_iv(iv_cfb);
++			ctx.encrypt_cfb(len, iv_cfb, compressed.ptr(), compressed.ptr());
++		}
+ 
+ 		file->store_buffer(compressed.ptr(), compressed.size());
+ 		data.clear();
+diff --git a/core/io/file_access_encrypted.h b/core/io/file_access_encrypted.h
+index 304b939..38a7b3c 100644
+--- a/core/io/file_access_encrypted.h
++++ b/core/io/file_access_encrypted.h
+@@ -56,8 +56,12 @@ private:
+ 	mutable uint64_t pos = 0;
+ 	mutable bool eofed = false;
+ 	bool use_magic = true;
++	Vector<uint8_t> key_ofb; // ProjectSpolia: segunda camada, só nos pacotes (sem mágica).
+ 
+ 	void _close();
++	void _spolia_derivar(const Vector<uint8_t> &p_key);
++	Error _spolia_ofb(uint8_t *r_data, uint64_t p_len, const uint8_t p_iv[16]) const;
++	void _spolia_iv(uint8_t r_iv[16]) const;
+ 
+ 	static CryptoCore::RandomGenerator *_fae_static_rng;
+ 
+diff --git a/core/io/file_access_pack.cpp b/core/io/file_access_pack.cpp
+index cc4bef2..977c993 100644
+--- a/core/io/file_access_pack.cpp
++++ b/core/io/file_access_pack.cpp
+@@ -36,6 +36,28 @@
+ #include "core/os/os.h"
+ #include "core/version.h"
+ 
++// ProjectSpolia: a chave compilada está mascarada (core_builders.py); só é
++// desfeita aqui, na hora de abrir o pacote.
++static bool _spolia_tem_chave() {
++	for (int i = 0; i < 32; i++) {
++		if (script_encryption_key[i]) {
++			return true;
++		}
++	}
++	return false;
++}
++
++static void _spolia_chave(uint8_t *r_key) {
++	if (!_spolia_tem_chave()) {
++		memset(r_key, 0, 32);
++		return;
++	}
++	spolia_mascara(r_key);
++	for (int i = 0; i < 32; i++) {
++		r_key[i] ^= script_encryption_key[i];
++	}
++}
++
+ Error PackedData::add_pack(const String &p_path, bool p_replace_files, uint64_t p_offset, const Vector<uint8_t> &p_decryption_key) {
+ 	for (int i = 0; i < sources.size(); i++) {
+ 		if (sources[i]->try_open_pack(p_path, p_replace_files, p_offset, p_decryption_key)) {
+@@ -333,15 +355,14 @@ bool PackedSourcePCK::try_open_pack(const String &p_path, bool p_replace_files,
+ #ifdef TOOLS_ENABLED
+ 		if (!p_decryption_key.is_empty()) {
+ 			ERR_FAIL_COND_V_MSG(p_decryption_key.size() != 32, false, "Decryption key must be 256-bit.");
+-			constexpr uint8_t empty_key[32] = {};
+-			if (memcmp(script_encryption_key, empty_key, sizeof(empty_key)) == 0) {
++			if (!_spolia_tem_chave()) {
+ 				key = p_decryption_key;
+ 			}
+ 		} else
+ #endif
+ 		{
+ 			key.resize(32);
+-			memcpy(key.ptrw(), script_encryption_key, 32);
++			_spolia_chave(key.ptrw());
+ 		}
+ 
+ 		Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_READ, false);
+@@ -561,15 +582,14 @@ FileAccessPack::FileAccessPack(const String &p_path, const PackedData::PackedFil
+ #ifdef TOOLS_ENABLED
+ 		if (!p_decryption_key.is_empty()) {
+ 			ERR_FAIL_COND_MSG(p_decryption_key.size() != 32, "Decryption key must be 256-bit.");
+-			constexpr uint8_t empty_key[32] = {};
+-			if (memcmp(script_encryption_key, empty_key, sizeof(empty_key)) == 0) {
++			if (!_spolia_tem_chave()) {
+ 				key = p_decryption_key;
+ 			}
+ 		} else
+ #endif
+ 		{
+ 			key.resize(32);
+-			memcpy(key.ptrw(), script_encryption_key, 32);
++			_spolia_chave(key.ptrw());
+ 		}
+ 
+ 		Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_READ, false);
+diff --git a/core/io/file_access_pack.h b/core/io/file_access_pack.h
+index 490778f..0f167b5 100644
+--- a/core/io/file_access_pack.h
++++ b/core/io/file_access_pack.h
+@@ -37,8 +37,9 @@
+ #include "core/templates/hash_set.h"
+ #include "core/templates/list.h"
+ 
+-// Godot's packed file magic header ("GDPC" in ASCII).
+-#define PACK_HEADER_MAGIC 0x43504447
++// ProjectSpolia: mágica própria no lugar de "GDPC" (core/io/spolia_segredo.gen.h).
++#include "core/io/spolia_segredo.gen.h"
++#define PACK_HEADER_MAGIC SPOLIA_PACK_MAGIC
+ 
+ #define PACK_FORMAT_VERSION_V2 2
+ #define PACK_FORMAT_VERSION_V3 3
+diff --git a/modules/gdscript/gdscript_tokenizer_buffer.cpp b/modules/gdscript/gdscript_tokenizer_buffer.cpp
+index 01ea731..1c70047 100644
+--- a/modules/gdscript/gdscript_tokenizer_buffer.cpp
++++ b/modules/gdscript/gdscript_tokenizer_buffer.cpp
+@@ -32,11 +32,21 @@
+ 
+ #include "core/io/compression.h"
+ #include "core/io/marshalls.h"
++#include "core/io/spolia_segredo.gen.h"
++
++// ProjectSpolia: o GDScript binário tem mágica e versão próprias, tipos de
++// token permutados, linhas mascaradas e identificadores cifrados por um fluxo
++// de 32 bytes em vez do XOR fixo 0xb6 (segredo em core/io/spolia_segredo.gen.h).
++static_assert(GDScriptTokenizer::Token::TK_MAX <= 128, "Tokens não cabem nos 7 bits permutados.");
++
++static inline uint8_t _spolia_fluxo(uint32_t p_ident, uint32_t p_byte) {
++	return SPOLIA_FLUXO_IDENT[(p_byte + p_ident * 7u) & 31u] ^ (uint8_t)(p_byte * 0x9Du + p_ident);
++}
+ 
+ int GDScriptTokenizerBuffer::_token_to_binary(const Token &p_token, Vector<uint8_t> &r_buffer, int p_start, HashMap<StringName, uint32_t> &r_identifiers_map, HashMap<Variant, uint32_t> &r_constants_map) {
+ 	int pos = p_start;
+ 
+-	int token_type = p_token.type & TOKEN_MASK;
++	int token_type = SPOLIA_TOKEN_COD[p_token.type & TOKEN_MASK];
+ 
+ 	switch (p_token.type) {
+ 		case GDScriptTokenizer::Token::ANNOTATION:
+@@ -81,7 +91,7 @@ int GDScriptTokenizerBuffer::_token_to_binary(const Token &p_token, Vector<uint8
+ 		r_buffer.write[pos] = token_type;
+ 		pos++;
+ 	}
+-	encode_uint32(p_token.start_line, &r_buffer.write[pos]);
++	encode_uint32(p_token.start_line ^ SPOLIA_XOR_LINHA, &r_buffer.write[pos]);
+ 	return token_len;
+ }
+ 
+@@ -90,13 +100,13 @@ GDScriptTokenizer::Token GDScriptTokenizerBuffer::_binary_to_token(const uint8_t
+ 	const uint8_t *b = p_buffer;
+ 
+ 	uint32_t token_type = decode_uint32(b);
+-	token.type = (Token::Type)(token_type & TOKEN_MASK);
++	token.type = (Token::Type)SPOLIA_TOKEN_DEC[token_type & TOKEN_MASK];
+ 	if (token_type & TOKEN_BYTE_MASK) {
+ 		b += 4;
+ 	} else {
+ 		b++;
+ 	}
+-	token.start_line = decode_uint32(b);
++	token.start_line = decode_uint32(b) ^ SPOLIA_XOR_LINHA;
+ 	token.end_line = token.start_line;
+ 
+ 	token.literal = token.get_name();
+@@ -138,10 +148,10 @@ GDScriptTokenizer::Token GDScriptTokenizerBuffer::_binary_to_token(const uint8_t
+ 
+ Error GDScriptTokenizerBuffer::set_code_buffer(const Vector<uint8_t> &p_buffer) {
+ 	const uint8_t *buf = p_buffer.ptr();
+-	ERR_FAIL_COND_V(p_buffer.size() < 12 || p_buffer[0] != 'G' || p_buffer[1] != 'D' || p_buffer[2] != 'S' || p_buffer[3] != 'C', ERR_INVALID_DATA);
++	ERR_FAIL_COND_V(p_buffer.size() < 12 || decode_uint32(buf) != SPOLIA_GDSC_MAGIC, ERR_INVALID_DATA);
+ 
+ 	int version = decode_uint32(&buf[4]);
+-	ERR_FAIL_COND_V_MSG(version != TOKENIZER_VERSION, ERR_INVALID_DATA, "Binary GDScript is not compatible with this engine version.");
++	ERR_FAIL_COND_V_MSG(version != (int)SPOLIA_TOKENS_VERSAO, ERR_INVALID_DATA, "Binary GDScript is not compatible with this engine version.");
+ 
+ 	int decompressed_size = decode_uint32(&buf[8]);
+ 
+@@ -175,7 +185,7 @@ Error GDScriptTokenizerBuffer::set_code_buffer(const Vector<uint8_t> &p_buffer)
+ 		for (uint32_t j = 0; j < len; j++) {
+ 			uint8_t tmp[4];
+ 			for (uint32_t k = 0; k < 4; k++) {
+-				tmp[k] = b[j * 4 + k] ^ 0xb6;
++				tmp[k] = b[j * 4 + k] ^ _spolia_fluxo(i, j * 4 + k);
+ 			}
+ 			cs.write[j] = decode_uint32(tmp);
+ 		}
+@@ -299,6 +309,7 @@ Vector<uint8_t> GDScriptTokenizerBuffer::parse_code_string(const String &p_code,
+ 	int buf_pos = 16;
+ 
+ 	// Save identifiers.
++	uint32_t spolia_ident = 0;
+ 	for (const StringName &id : rev_identifier_map) {
+ 		String s = id.operator String();
+ 		int len = s.length();
+@@ -313,11 +324,12 @@ Vector<uint8_t> GDScriptTokenizerBuffer::parse_code_string(const String &p_code,
+ 			encode_uint32(s[i], tmp);
+ 
+ 			for (int b = 0; b < 4; b++) {
+-				contents.write[buf_pos + b] = tmp[b] ^ 0xb6;
++				contents.write[buf_pos + b] = tmp[b] ^ _spolia_fluxo(spolia_ident, i * 4 + b);
+ 			}
+ 
+ 			buf_pos += 4;
+ 		}
++		spolia_ident++;
+ 	}
+ 
+ 	// Save constants.
+@@ -353,11 +365,8 @@ Vector<uint8_t> GDScriptTokenizerBuffer::parse_code_string(const String &p_code,
+ 
+ 	// Save header.
+ 	buf.resize(12);
+-	buf.write[0] = 'G';
+-	buf.write[1] = 'D';
+-	buf.write[2] = 'S';
+-	buf.write[3] = 'C';
+-	encode_uint32(TOKENIZER_VERSION, &buf.write[4]);
++	encode_uint32(SPOLIA_GDSC_MAGIC, &buf.write[0]);
++	encode_uint32(SPOLIA_TOKENS_VERSAO, &buf.write[4]);
+ 
+ 	switch (p_compress_mode) {
+ 		case COMPRESS_NONE:
