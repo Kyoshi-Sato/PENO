@@ -209,3 +209,18 @@ func test_blocked_user_stops_syncing() -> void:
 	await sync.sync_now()
 	assert_eq(sync.calls.size(), before, "bloqueado não insiste")
 	assert_true(g.is_completed(1), "o app continua funcionando offline")
+
+
+func test_missing_route_is_server_error_not_offline() -> void:
+	# Foi o que aconteceu com a API publicada sem a rota /usuario: 404 no
+	# registro aparecia na tela como "sem conexão".
+	sync.fail_code = 404
+	g.mark_completed(1, 3)
+	await sync.sync_now()
+	assert_eq(sync.get_status(), Sync.Status.SERVER_ERROR)
+	assert_eq(sync.get_last_http_code(), 404)
+	assert_true(sync.has_pending_changes(), "nada se perde: sobe quando a rota existir")
+	sync.fail_code = 0
+	await sync.sync_now()
+	assert_eq(sync.get_status(), Sync.Status.SYNCED)
+	assert_eq(sync.server_row().dados["1"].stars, 3)

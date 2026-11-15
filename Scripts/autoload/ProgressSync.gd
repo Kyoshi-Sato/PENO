@@ -34,8 +34,12 @@ enum Status {
 	IDLE,       ## ainda não tentou nesta sessão
 	SYNCING,
 	SYNCED,
-	OFFLINE,    ## a última tentativa não alcançou o servidor
+	OFFLINE,    ## a última tentativa não alcançou o servidor (sem rede/timeout)
 	BLOCKED,    ## o admin bloqueou este usuário
+	## O servidor respondeu, mas com erro (404 de rota que não existe, 500 de
+	## tabela faltando...). Separado de OFFLINE de propósito: com os dois
+	## juntos, uma API mal publicada aparecia na tela como "sem internet".
+	SERVER_ERROR,
 }
 
 signal status_changed(status: Status)
@@ -59,6 +63,9 @@ var _timer: Timer
 ## Dono do progresso. É o autoload Global; os testes trocam por um stub antes
 ## do `_ready` para não mexer no user://progress.json de verdade.
 var _g: Node = null
+## Código HTTP da última resposta (0 = não chegou ao servidor). É o que
+## separa OFFLINE de SERVER_ERROR no fim da rodada.
+var _last_code: int = 0
 
 
 func _ready() -> void:
@@ -128,6 +135,11 @@ func has_pending_changes() -> bool:
 	return bool(_account.get("dirty", false))
 
 
+## Código HTTP da última resposta; 0 quando a requisição não chegou ao servidor.
+func get_last_http_code() -> int:
+	return _last_code
+
+
 ## Dispara uma rodada de sincronização. Seguro chamar a qualquer momento: se
 ## já houver uma rodando, ela roda de novo ao terminar.
 func sync_now() -> void:
@@ -141,12 +153,19 @@ func sync_now() -> void:
 	var ok := true
 	while true:
 		_again = false
+		_last_code = 0
 		ok = await _sync_once()
 		if not _again or _status == Status.BLOCKED:
 			break
 	_busy = false
 	if _status == Status.SYNCING:
-		_set_status(Status.SYNCED if ok else Status.OFFLINE)
+		if ok:
+			_set_status(Status.SYNCED)
+		elif _last_code == 0:
+			_set_status(Status.OFFLINE)
+		else:
+			push_warning("ProgressSync: o servidor respondeu HTTP %d" % _last_code)
+			_set_status(Status.SERVER_ERROR)
 
 
 # ============================================================
@@ -263,14 +282,14 @@ func _sync_once() -> bool:
 		if not await _register():
 			return false
 
-	var r: Dictionary = await _request(HTTPClient.METHOD_GET, "/usuario/progresso")
+	var r: Dictionary = await _call(HTTPClient.METHOD_GET, "/usuario/progresso")
 	if int(r.code) == 401:
 		# O admin apagou o usuário (ou o token se perdeu no servidor). O
 		# progresso local continua valendo: registra de novo e envia.
 		_forget_account()
 		if not await _register():
 			return false
-		r = await _request(HTTPClient.METHOD_GET, "/usuario/progresso")
+		r = await _call(HTTPClient.METHOD_GET, "/usuario/progresso")
 
 	for _attempt: int in MAX_ATTEMPTS:
 		var code: int = int(r.code)
@@ -303,7 +322,7 @@ func _sync_once() -> bool:
 					_g.apply_remote_progress(payload)
 				var rev_before := _local_rev
 				var base: int = int(r.data.get("versao", 0))
-				var p: Dictionary = await _request(HTTPClient.METHOD_PUT, "/usuario/progresso",
+				var p: Dictionary = await _call(HTTPClient.METHOD_PUT, "/usuario/progresso",
 					{"dados": payload, "versao_base": base})
 				if int(p.code) == 200:
 					_account["versao"] = int(p.data.get("versao", base + 1))
@@ -319,7 +338,7 @@ func _sync_once() -> bool:
 
 
 func _register() -> bool:
-	var r: Dictionary = await _request(HTTPClient.METHOD_POST, "/usuario/registro", {})
+	var r: Dictionary = await _call(HTTPClient.METHOD_POST, "/usuario/registro", {})
 	if int(r.code) != 201:
 		return false
 	var uuid := String(r.data.get("uuid", ""))
@@ -335,6 +354,13 @@ func _register() -> bool:
 func _forget_account() -> void:
 	_account = {"uuid": "", "token": "", "versao": 0, "dirty": true, "force": false}
 	_save_account()
+
+
+## Passa pelo transporte e guarda o código da resposta.
+func _call(method: int, path: String, body: Variant = null) -> Dictionary:
+	var r: Dictionary = await _request(method, path, body)
+	_last_code = int(r.get("code", 0))
+	return r
 
 
 ## Transporte HTTP. Devolve { code: int, data: Dictionary }; code 0 = sem rede.

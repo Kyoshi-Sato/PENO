@@ -9,6 +9,8 @@ extends "res://Scripts/autoload/ProgressSync.gd"
 var server: Dictionary = {}
 ## Simula falta de rede: toda requisição devolve code 0.
 var offline: bool = false
+## Diferente de 0: toda requisição devolve este código (API mal publicada).
+var fail_code: int = 0
 ## Requisições feitas, em ordem ("GET /usuario/progresso", ...).
 var calls: PackedStringArray = PackedStringArray()
 ## Chamado antes de responder um PUT — para simular o usuário mexendo no
@@ -44,6 +46,8 @@ func _request(method: int, path: String, body: Variant = null) -> Dictionary:
 	calls.append("%s %s" % [verb, path])
 	if offline:
 		return {"code": 0, "data": {}}
+	if fail_code != 0:
+		return {"code": fail_code, "data": {}}
 
 	if path == "/usuario/registro":
 		var id: int = _next_id

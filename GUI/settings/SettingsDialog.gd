@@ -506,7 +506,7 @@ func _sync_account_row() -> void:
 	var uuid: String = ProgressSync.get_uuid()
 	_btn_copy_id.visible = not uuid.is_empty()
 	var id_line: String = "ID: " + uuid if not uuid.is_empty() \
-		else "ID: ainda não criado (precisa de internet)"
+		else "ID: ainda não criado"
 	_account_label.text = id_line + "\n" + _sync_status_text()
 
 
@@ -518,6 +518,10 @@ func _sync_status_text() -> String:
 			return "Progresso salvo no servidor."
 		ProgressSync.Status.OFFLINE:
 			return "Sem conexão. O progresso fica neste aparelho e sobe quando a internet voltar."
+		ProgressSync.Status.SERVER_ERROR:
+			return ("O servidor não aceitou a sincronização (HTTP %d). "
+				% ProgressSync.get_last_http_code()
+				+ "O progresso fica neste aparelho e sobe quando isso for resolvido.")
 		ProgressSync.Status.BLOCKED:
 			return "Sincronização desativada para este ID. O progresso fica só neste aparelho."
 		ProgressSync.Status.DISABLED:
